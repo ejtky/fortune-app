@@ -26,9 +26,9 @@ export async function generateAIResponse(
         parts: [{ text: msg.content }],
       })),
       generationConfig: {
-        temperature: 0.7,
-        maxOutputTokens: 800,
-        topP: 0.8,
+        temperature: 0.8,
+        maxOutputTokens: 2048,
+        topP: 0.9,
         topK: 40,
       },
     });

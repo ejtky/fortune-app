@@ -26,11 +26,19 @@ export async function generateAIResponse(
     });
 
     // 会話履歴を構築
+    // Geminiは最初のメッセージが 'user' である必要があるため、履歴を調整
+    let history = conversationHistory.slice(-6).map((msg) => ({
+      role: msg.role === "assistant" ? "model" : "user",
+      parts: [{ text: msg.content }],
+    }));
+
+    // 先頭がモデルの回答から始まっている場合、それを削除してユーザー発言から始める
+    if (history.length > 0 && history[0].role === "model") {
+      history = history.slice(1);
+    }
+
     const chat = model.startChat({
-      history: conversationHistory.slice(-5).map((msg) => ({
-        role: msg.role === "assistant" ? "model" : "user",
-        parts: [{ text: msg.content }],
-      })),
+      history: history,
       generationConfig: {
         temperature: 0.8,
         maxOutputTokens: 2048,

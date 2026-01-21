@@ -11,8 +11,13 @@ export async function generateAIResponse(
   conversationHistory: ChatMessage[] = []
 ): Promise<string> {
   try {
+    const apiKey = process.env.GOOGLE_AI_API_KEY || "";
+    if (!apiKey) {
+      throw new Error("環境変数 GOOGLE_AI_API_KEY が設定されていません");
+    }
+
     // Google Gemini APIクライアントの初期化（関数内で初期化することで環境変数の読み込みを確実にする）
-    const genAI = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY || "");
+    const genAI = new GoogleGenerativeAI(apiKey);
 
     // Gemini 1.5 Flashモデルを使用（安定版）
     const model = genAI.getGenerativeModel({
@@ -44,12 +49,15 @@ export async function generateAIResponse(
     console.error("Google Gemini API Error:", error);
 
     // エラーメッセージを詳細に記録
-    if (error.message?.includes("API key")) {
-      throw new Error("Google AI APIキーが設定されていません");
+    if (error.message === "環境変数 GOOGLE_AI_API_KEY が設定されていません") {
+      throw error; // そのまま再送出
+    } else if (error.message?.includes("API key")) {
+      throw new Error(`Google AI APIキーが無効です: ${error.message}`);
     } else if (error.message?.includes("quota")) {
-      throw new Error("API利用制限に達しました");
+      throw new Error(`API利用制限に達しました: ${error.message}`);
     } else {
-      throw new Error("AI回答の生成に失敗しました");
+      // 生のエラーメッセージを含めてスローする（デバッグ用）
+      throw new Error(`AI回答の生成に失敗しました (Raw Error: ${error.message})`);
     }
   }
 }

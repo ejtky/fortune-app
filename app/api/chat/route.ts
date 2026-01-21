@@ -81,15 +81,16 @@ export async function POST(request: NextRequest) {
         console.error('AI generation failed, falling back to template:', aiError);
         console.error('AI Error Stack:', aiError.stack);
         // AI生成に失敗した場合はテンプレート回答にフォールバック
-        response = generateTemplateResponse(
+        const templateResponse = generateTemplateResponse(
           message,
           context,
           isFollowUp,
           mainTopic
         );
+        // エラー内容を回答の冒頭に追加（デバッグ用）
+        response = `【システム通知: AI生成エラー】\nエラー内容: ${aiError.message}\n\n以下はデータベースからの検索結果です：\n\n${templateResponse}`;
+        
         usedAI = false;
-        // エラー内容をレスポンスに含める（デバッグ用 - 本番では隠すべきだが確認のため）
-        // Warning: This mutates valid response to include error info if we wanted to
       }
     } else {
       // AI APIが設定されていない場合はテンプレート回答

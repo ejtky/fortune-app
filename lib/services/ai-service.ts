@@ -2,13 +2,21 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 import type { ChatMessage } from "./chat-context";
 
 // Google Gemini APIクライアントの初期化
+/**
+ * Google Gemini APIを使用してAI回答を生成
+ */
+export async function generateAIResponse(
+  systemPrompt: string,
+  userMessage: string,
+  conversationHistory: ChatMessage[] = []
+): Promise<string> {
   try {
     // Google Gemini APIクライアントの初期化（関数内で初期化することで環境変数の読み込みを確実にする）
     const genAI = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY || "");
 
-    // Gemini 2.0 Flashモデルを使用（2025年最新版）
+    // Gemini 1.5 Flashモデルを使用（安定版）
     const model = genAI.getGenerativeModel({
-      model: "gemini-2.0-flash",
+      model: "gemini-1.5-flash",
       systemInstruction: systemPrompt,
     });
 

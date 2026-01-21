@@ -13,9 +13,9 @@ export async function generateAIResponse(
   conversationHistory: ChatMessage[] = []
 ): Promise<string> {
   try {
-    // Gemini 3.0 Flashモデルを使用（最新・高性能）
+    // Gemini 2.0 Flashモデルを使用（2025年最新版）
     const model = genAI.getGenerativeModel({
-      model: "gemini-1.5-flash",
+      model: "gemini-2.0-flash",
       systemInstruction: systemPrompt,
     });
 

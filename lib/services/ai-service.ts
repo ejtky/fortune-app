@@ -19,9 +19,9 @@ export async function generateAIResponse(
     // Google Gemini APIクライアントの初期化（関数内で初期化することで環境変数の読み込みを確実にする）
     const genAI = new GoogleGenerativeAI(apiKey);
 
-    // Gemini 1.5 Flashモデルを使用（安定版）
+    // Gemini Proモデルを使用（最も互換性が高い安定版）
     const model = genAI.getGenerativeModel({
-      model: "gemini-1.5-flash",
+      model: "gemini-pro",
       systemInstruction: systemPrompt,
     });
 

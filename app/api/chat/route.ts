@@ -79,6 +79,7 @@ export async function POST(request: NextRequest) {
         usedAI = true;
       } catch (aiError: any) {
         console.error('AI generation failed, falling back to template:', aiError);
+        console.error('AI Error Stack:', aiError.stack);
         // AI生成に失敗した場合はテンプレート回答にフォールバック
         response = generateTemplateResponse(
           message,
@@ -87,10 +88,12 @@ export async function POST(request: NextRequest) {
           mainTopic
         );
         usedAI = false;
+        // エラー内容をレスポンスに含める（デバッグ用 - 本番では隠すべきだが確認のため）
+        // Warning: This mutates valid response to include error info if we wanted to
       }
     } else {
       // AI APIが設定されていない場合はテンプレート回答
-      console.warn('AI API key not configured, using template response');
+      console.warn('AI API key not configured (isAIServiceAvailable returned false), using template response');
       response = generateTemplateResponse(
         message,
         context,

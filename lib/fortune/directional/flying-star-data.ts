@@ -27,18 +27,82 @@ export function getCurrentPeriod(): number {
 }
 
 /**
- * 玄空飛星派の基本データ構造
+ * 二十四山（24山）の定義
+ * 8方位をさらに3分割（地・天・人）したもの
+ */
+export interface MountainInfo {
+  name: string;        // 山名（例：壬、子、癸）
+  direction: DirectionKey; // 属する8方位
+  yuan: 'earth' | 'heaven' | 'human'; // 三元（地・天・人）
+  polarity: number;    // 陰陽（1: 陽、-1: 陰）
+}
+
+export const MOUNTAIN_DATA: Record<string, MountainInfo> = {
+  // 北 (N)
+  '壬': { name: '壬', direction: 'N', yuan: 'earth', polarity: 1 },
+  '子': { name: '子', direction: 'N', yuan: 'heaven', polarity: -1 },
+  '癸': { name: '癸', direction: 'N', yuan: 'human', polarity: -1 },
+  // 北東 (NE)
+  '丑': { name: '丑', direction: 'NE', yuan: 'earth', polarity: -1 },
+  '艮': { name: '艮', direction: 'NE', yuan: 'heaven', polarity: 1 },
+  '寅': { name: '寅', direction: 'NE', yuan: 'human', polarity: 1 },
+  // 東 (E)
+  '甲': { name: '甲', direction: 'E', yuan: 'earth', polarity: 1 },
+  '卯': { name: '卯', direction: 'E', yuan: 'heaven', polarity: -1 },
+  '乙': { name: '乙', direction: 'E', yuan: 'human', polarity: -1 },
+  // 南東 (SE)
+  '辰': { name: '辰', direction: 'SE', yuan: 'earth', polarity: -1 },
+  '巽': { name: '巽', direction: 'SE', yuan: 'heaven', polarity: 1 },
+  '巳': { name: '巳', direction: 'SE', yuan: 'human', polarity: 1 },
+  // 南 (S)
+  '丙': { name: '丙', direction: 'S', yuan: 'earth', polarity: 1 },
+  '午': { name: '午', direction: 'S', yuan: 'heaven', polarity: -1 },
+  '丁': { name: '丁', direction: 'S', yuan: 'human', polarity: -1 },
+  // 南西 (SW)
+  '未': { name: '未', direction: 'SW', yuan: 'earth', polarity: -1 },
+  '坤': { name: '坤', direction: 'SW', yuan: 'heaven', polarity: 1 },
+  '申': { name: '申', direction: 'SW', yuan: 'human', polarity: 1 },
+  // 西 (W)
+  '庚': { name: '庚', direction: 'W', yuan: 'earth', polarity: 1 },
+  '酉': { name: '酉', direction: 'W', yuan: 'heaven', polarity: -1 },
+  '辛': { name: '辛', direction: 'W', yuan: 'human', polarity: -1 },
+  // 北西 (NW)
+  '戌': { name: '戌', direction: 'NW', yuan: 'earth', polarity: -1 },
+  '乾': { name: '乾', direction: 'NW', yuan: 'heaven', polarity: 1 },
+  '亥': { name: '亥', direction: 'NW', yuan: 'human', polarity: 1 },
+};
+
+/**
+ * 飛星の順逆判定用の陰陽テーブル
+ * 運星（1-9）と三元（地・天・人）の組み合わせで決まる
+ */
+export const POLARITY_TABLE: Record<number, Record<'earth' | 'heaven' | 'human', number>> = {
+  1: { earth: 1, heaven: -1, human: -1 }, // 一白
+  2: { earth: -1, heaven: 1, human: 1 },  // 二黒
+  3: { earth: 1, heaven: -1, human: -1 }, // 三碧
+  4: { earth: -1, heaven: 1, human: 1 },  // 四緑
+  5: { earth: 0, heaven: 0, human: 0 },   // 五黄（特殊：現在の運の陽か陰に従うが、基本は運星に準ずる）
+  6: { earth: -1, heaven: 1, human: 1 },  // 六白
+  7: { earth: 1, heaven: -1, human: -1 }, // 七赤
+  8: { earth: -1, heaven: 1, human: 1 },  // 八白
+  9: { earth: 1, heaven: -1, human: -1 }, // 九紫
+};
+
+/**
+ * 玄空飛星派のチャートを拡張
  */
 export interface FlyingStarChart {
-  period: number; // 運
-  facing: DirectionKey; // 向（建物の向き）
-  sitting: DirectionKey; // 座（建物の背）
+  period: number;
+  facing: DirectionKey;
+  sitting: DirectionKey;
+  facingMountain?: string; // 向の山
+  sittingMountain?: string; // 座の山
   stars: Record<
     DirectionKey,
     {
-      mountain: number; // 山星（人の健康・人間関係）
-      facing: number; // 向星（財運・ビジネス）
-      base: number; // 運星（地盤となる時運）
+      mountain: number;
+      facing: number;
+      base: number;
     }
   >;
 }

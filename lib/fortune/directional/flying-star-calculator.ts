@@ -1,5 +1,11 @@
 import { DirectionKey } from './constants';
-import { PALACE_BASE_STARS, LOSHU_PATH, FlyingStarChart } from './flying-star-data';
+import { 
+  PALACE_BASE_STARS, 
+  LOSHU_PATH, 
+  FlyingStarChart, 
+  MOUNTAIN_DATA, 
+  POLARITY_TABLE 
+} from './flying-star-data';
 
 /**
  * 九星の順行・逆行を判定・配置するユーティリティ
@@ -32,40 +38,52 @@ function flyStarsBackward(centerStar: number): Record<DirectionKey, number> {
 }
 
 /**
- * 陽か陰かを判定（順行か逆行かを決めるため）
- * 簡易版：三元九運の各星の陰陽
+ * 洛書盤上の特定の方位に位置する「地盤」の九星に対応する24山（の三元）を考慮し、
+ * その星が現在どのような陰陽（順逆）を持つかを判定する。
  */
-function isPositive(star: number, direction: DirectionKey): boolean {
-  // 実際には地、天、人の三元（24山）で決まるが、ここでは簡易ロジック
-  // 奇数は陽（順行）、偶数は陰（逆行）をベースとする
-  return star % 2 !== 0;
+function getPolarity(baseStar: number, mountainName: string, period: number): number {
+  const mountain = MOUNTAIN_DATA[mountainName];
+  if (!mountain) return 1;
+
+  // 五黄土星の場合の処理（中宮に置かれた時期の運の陰陽に従う）
+  if (baseStar === 5) {
+    // 第9運なら九紫火星（陽）の性質に従うなど、時期の星の三元を確認
+    return POLARITY_TABLE[period][mountain.yuan];
+  }
+
+  // それ以外の星は、その星が本来属する方位の三元（地天人）に基づく
+  return POLARITY_TABLE[baseStar][mountain.yuan];
 }
 
 /**
- * 玄空飛星派のチャートを計算
- * @param period 建築年が属する運（1-9）
- * @param sitting 座（建物の背面方位）
- * @param facing 向（建物の正面方位）
+ * 玄空飛星派のチャートを計算（24山対応版）
  */
 export function calculateFlyingStarChart(
   period: number,
-  sitting: DirectionKey,
-  facing: DirectionKey
+  sittingMountain: string,
+  facingMountain: string
 ): FlyingStarChart {
+  const sM = MOUNTAIN_DATA[sittingMountain];
+  const fM = MOUNTAIN_DATA[facingMountain];
+  
+  if (!sM || !fM) {
+    throw new Error(`Invalid mountain data: ${sittingMountain}, ${facingMountain}`);
+  }
+
   // 1. 運星（地盤）の計算：時運を中心に順行飛星
   const periodStars = flyStarsForward(period);
 
   // 2. 山星の計算
-  // 座の方位にある運星を中宮に入れる
-  const sittingBaseStar = periodStars[sitting];
-  const mountainStars = isPositive(sittingBaseStar, sitting)
+  const sittingBaseStar = periodStars[sM.direction];
+  const mountainPolarity = getPolarity(sittingBaseStar, sittingMountain, period);
+  const mountainStars = mountainPolarity >= 0
     ? flyStarsForward(sittingBaseStar)
     : flyStarsBackward(sittingBaseStar);
 
   // 3. 向星の計算
-  // 向の方位にある運星を中宮に入れる
-  const facingBaseStar = periodStars[facing];
-  const facingStars = isPositive(facingBaseStar, facing)
+  const facingBaseStar = periodStars[fM.direction];
+  const facingPolarity = getPolarity(facingBaseStar, facingMountain, period);
+  const facingStars = facingPolarity >= 0
     ? flyStarsForward(facingBaseStar)
     : flyStarsBackward(facingBaseStar);
 
@@ -82,8 +100,10 @@ export function calculateFlyingStarChart(
 
   return {
     period,
-    facing,
-    sitting,
+    facing: fM.direction,
+    sitting: sM.direction,
+    facingMountain,
+    sittingMountain,
     stars: stars as Record<DirectionKey, { mountain: number; facing: number; base: number }>
   };
 }

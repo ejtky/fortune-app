@@ -20,7 +20,7 @@ export async function generateAIResponse(
     const genAI = new GoogleGenerativeAI(apiKey);
 
     // モデル名の指定（環境変数から取得、デフォルトは最新の Gemini 1.5 Flash）
-    const modelName = process.env.GOOGLE_AI_MODEL || "gemini-1.5-flash";
+    const modelName = process.env.GOOGLE_AI_MODEL || "gemini-1.5-flash-latest";
 
     const model = genAI.getGenerativeModel({
       model: modelName,

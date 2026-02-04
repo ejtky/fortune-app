@@ -12,7 +12,8 @@ export const DIRECTIONS = {
   S: '南',
   SW: '南西',
   W: '西',
-  NW: '北西'
+  NW: '北西',
+  CENTER: '中宮'
 } as const;
 
 export type DirectionKey = keyof typeof DIRECTIONS;
@@ -26,7 +27,8 @@ export const DIRECTION_DEGREES: Record<DirectionKey, { min: number; max: number 
   S: { min: 157.5, max: 202.5 },
   SW: { min: 202.5, max: 247.5 },
   W: { min: 247.5, max: 292.5 },
-  NW: { min: 292.5, max: 337.5 }
+  NW: { min: 292.5, max: 337.5 },
+  CENTER: { min: 0, max: 0 }
 };
 
 // 方位と九星の対応（洛書の定位置）

@@ -8,7 +8,7 @@ import type { ChatMessage } from "./chat-context";
 export async function generateAIResponse(
   systemPrompt: string,
   userMessage: string,
-  conversationHistory: ChatMessage[] = []
+  conversationHistory: ChatMessage[] = [],
 ): Promise<string> {
   try {
     const apiKey = process.env.GOOGLE_AI_API_KEY || "";
@@ -19,9 +19,11 @@ export async function generateAIResponse(
     // Google Gemini APIクライアントの初期化（関数内で初期化することで環境変数の読み込みを確実にする）
     const genAI = new GoogleGenerativeAI(apiKey);
 
-    // Gemini 2.0 Flashモデルを使用（2025年1月リリースの安定版）
+    // モデル名の指定（環境変数から取得、デフォルトは最新の Gemini 1.5 Flash）
+    const modelName = process.env.GOOGLE_AI_MODEL || "gemini-1.5-flash";
+
     const model = genAI.getGenerativeModel({
-      model: "gemini-2.0-flash",
+      model: modelName,
       systemInstruction: systemPrompt,
     });
 
@@ -65,7 +67,9 @@ export async function generateAIResponse(
       throw new Error(`API利用制限に達しました: ${error.message}`);
     } else {
       // 生のエラーメッセージを含めてスローする（デバッグ用）
-      throw new Error(`AI回答の生成に失敗しました (Raw Error: ${error.message})`);
+      throw new Error(
+        `AI回答の生成に失敗しました (Raw Error: ${error.message})`,
+      );
     }
   }
 }

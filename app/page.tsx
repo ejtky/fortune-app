@@ -14,7 +14,7 @@ import DateSelector from './components/DateSelector';
 import TravelAnalysis from './components/TravelAnalysis';
 import NineStarDetailedProfile from './components/NineStarDetailedProfile';
 
-type TabType = 'profile' | 'direction' | 'travel';
+type TabType = 'profile' | 'direction' | 'travel' | 'flyingstar';
 
 export default function Home() {
   const [birthDate, setBirthDate] = useState('');
@@ -36,6 +36,9 @@ export default function Home() {
   const [selectedDirection, setSelectedDirection] = useState<DirectionKey | null>(null);
   const [activeLoshuBoard, setActiveLoshuBoard] = useState<'year' | 'month' | 'day'>('year');
   const [showDetailedProfile, setShowDetailedProfile] = useState(false);
+
+  // 飛星風水用の状態
+  const [flyingStarChart, setFlyingStarChart] = useState<any>(null);
 
   const handleCalculate = () => {
     if (!birthDate) return;
@@ -121,7 +124,8 @@ export default function Home() {
   const tabs: { id: TabType; label: string; icon: string }[] = [
     { id: 'profile', label: '九星プロフィール', icon: '⭐' },
     { id: 'direction', label: '方位学', icon: '🧭' },
-    { id: 'travel', label: '引っ越し・旅行診断', icon: '✈️' }
+    { id: 'travel', label: '引っ越し・旅行診断', icon: '✈️' },
+    { id: 'flyingstar', label: '飛星風水', icon: '🏠' }
   ];
 
   return (
@@ -430,6 +434,37 @@ export default function Home() {
             {/* Travel Tab */}
             {activeTab === 'travel' && directionalReading && (
               <TravelAnalysis directionalReading={directionalReading} />
+            )}
+
+            {/* Flying Star Tab */}
+            {activeTab === 'flyingstar' && (
+              <div className="space-y-8 animate-in fade-in duration-500">
+                <div className="bg-stone-50 p-6 rounded-xl border border-stone-200">
+                  <h3 className="text-xl font-bold font-serif text-stone-800 mb-4 flex items-center gap-2">
+                    <span className="w-1.5 h-6 bg-amber-600 rounded-full" />
+                    玄空飛星鑑定（住まいの風水）
+                  </h3>
+                  <p className="text-stone-600 mb-6 text-sm">
+                    建物の建築時期（運）と、正面の方位（向）から、家全体のエネルギー配置を読み解きます。
+                  </p>
+                  
+                  <div className="grid lg:grid-cols-2 gap-8">
+                    <div className="bg-white p-6 rounded-xl shadow-sm border border-stone-100 flex flex-col items-center justify-center min-h-[300px]">
+                      <div className="text-4xl mb-4">🏠</div>
+                      <p className="text-stone-500 text-center italic">
+                        ※ メインページへの飛星計算フォーム統合を準備中です。<br/>
+                        詳細な鑑定は「九星診断」メニューからご利用いただけます。
+                      </p>
+                      <Link 
+                        href="/diagnosis" 
+                        className="mt-6 px-6 py-2 bg-amber-600 text-white rounded-lg font-bold hover:bg-amber-700 transition-colors shadow-md"
+                      >
+                        九星診断（玄空飛星対応）へ移動
+                      </Link>
+                    </div>
+                  </div>
+                </div>
+              </div>
             )}
             
           </div>

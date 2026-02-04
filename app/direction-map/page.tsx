@@ -234,7 +234,7 @@ function getDirectionEmoji(direction: DirectionKey): string {
     SW: '↙️',
     W: '⬅️',
     NW: '↖️',
-
+    CENTER: '🏠',
   };
   return emojis[direction] || '📍';
 }

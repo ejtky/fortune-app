@@ -123,7 +123,7 @@ function calculateRelevanceScore(
 
   // タイトルマッチ（高スコア）
   if (lowerTitle.includes(lowerQuery)) {
-    score += 1.5; // スコアを上げる
+    score += 2.5; // スコアを大幅に上げる
   }
 
   // キーワードマッチ

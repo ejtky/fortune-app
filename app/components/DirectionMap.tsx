@@ -29,6 +29,7 @@ const DIRECTION_ANGLES: Record<DirectionKey, number> = {
   SW: 225,
   W: 270,
   NW: 315,
+  CENTER: 0,
 };
 
 
@@ -42,6 +43,7 @@ const DIRECTION_NAMES: Record<DirectionKey, string> = {
   SW: '南西',
   W: '西',
   NW: '北西',
+  CENTER: '中宮',
 };
 
 

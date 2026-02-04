@@ -19,8 +19,8 @@ export async function generateAIResponse(
     // Google Gemini APIクライアントの初期化（関数内で初期化することで環境変数の読み込みを確実にする）
     const genAI = new GoogleGenerativeAI(apiKey);
 
-    // モデル名の指定（環境変数から取得、デフォルトは最新の Gemini 1.5 Flash）
-    const modelName = process.env.GOOGLE_AI_MODEL || "gemini-1.5-flash-latest";
+    // モデル名の指定（環境変数から取得、デフォルトは最新の Gemini 2.0 Flash）
+    const modelName = process.env.GOOGLE_AI_MODEL || "gemini-2.0-flash";
 
     const model = genAI.getGenerativeModel({
       model: modelName,

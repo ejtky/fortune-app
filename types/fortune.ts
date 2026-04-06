@@ -6,7 +6,6 @@
 export interface NineStarKiProfile {
   honmei: number;        // 本命星（年命）- 基本性格
   getsumesei: number;    // 月命星（月生命）- 内面・才能
-  nichisei: number;      // 日命星（日）- 行動パターン
   keishakyu: number;     // 傾斜宮 - 本命星の定位置
   dokaisei: number;      // 同会星 - 本命星と同居する星
 }
@@ -18,7 +17,6 @@ export interface NineStarKiReading extends NineStarKiProfile {
   luckyColors: string[];         // ラッキーカラー
   luckyDirections: string[];     // ラッキー方位
   monthStarName: string;         // 月命星の名前
-  dayStarName: string;           // 日命星の名前
   interpretation: {
     personality: string;          // 性格解釈
     talents: string;              // 才能解釈

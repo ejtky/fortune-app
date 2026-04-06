@@ -106,42 +106,6 @@ function getRisshunDate(year: number): Date {
 }
 
 /**
- * 2つの日付間の日数を計算
- * @param date1 開始日
- * @param date2 終了日
- * @returns 日数
- */
-function getDaysBetween(date1: Date, date2: Date): number {
-  const oneDay = 24 * 60 * 60 * 1000; // ミリ秒
-  return Math.round((date2.getTime() - date1.getTime()) / oneDay);
-}
-
-/**
- * 日命星を計算
- * @param birthDate 生年月日
- * @returns 日命星（1-9）
- */
-export function calculateDayStar(birthDate: Date): number {
-  // 生年の立春を取得
-  const birthYear = birthDate.getFullYear();
-  const risshunDate = getRisshunDate(birthYear);
-
-  // 立春からの経過日数
-  const daysSinceRisshun = getDaysBetween(risshunDate, birthDate);
-
-  // 立春の日の日命星を計算（年によって変わる）
-  // 簡略化: 本命星を基準に計算
-  const honmeiStar = calculateHonmeiStar(birthDate);
-  const risshunDayStar = honmeiStar;
-
-  // 9日周期で循環
-  let dayStar = ((daysSinceRisshun % 9) + risshunDayStar) % 9;
-  if (dayStar <= 0) dayStar += 9;
-
-  return dayStar;
-}
-
-/**
  * 傾斜宮を計算
  * 本命星の定位置を返す
  * @param honmeiStar 本命星
@@ -227,9 +191,6 @@ export function calculateNineStarKiProfile(birthDate: Date): NineStarKiProfile {
   // 月命星を計算
   const getsumesei = calculateMonthStar(birthDate, honmei);
 
-  // 日命星を計算
-  const nichisei = calculateDayStar(birthDate);
-
   // 傾斜宮を計算
   const keishakyu = calculateKeishakyu(honmei);
 
@@ -240,7 +201,6 @@ export function calculateNineStarKiProfile(birthDate: Date): NineStarKiProfile {
   return {
     honmei,
     getsumesei,
-    nichisei,
     keishakyu,
     dokaisei
   };
@@ -262,11 +222,10 @@ export function generateNineStarKiReading(birthDate: Date): NineStarKiReading {
     luckyColors: LUCKY_COLORS[profile.honmei],
     luckyDirections: LUCKY_DIRECTIONS[profile.honmei],
     monthStarName: STAR_NAMES[profile.getsumesei],
-    dayStarName: STAR_NAMES[profile.nichisei],
     interpretation: {
       personality: `あなたの本命星は${STAR_NAMES[profile.honmei]}です。${ELEMENT_MAP[profile.honmei]}の性質を持ち、${CHARACTERISTICS[profile.honmei].slice(0, 3).join('、')}という特徴があります。`,
       talents: `月命星は${STAR_NAMES[profile.getsumesei]}で、内面には${ELEMENT_MAP[profile.getsumesei]}の才能が秘められています。`,
-      tendencies: `日命星は${STAR_NAMES[profile.nichisei]}で、日常的には${ELEMENT_MAP[profile.nichisei]}の性質が表れやすい傾向にあります。`
+      tendencies: `日々の生活においては本命星と月命星の性質が組み合わさって表れます。`
     }
   };
 }
@@ -276,7 +235,6 @@ export const _test = {
   adjustYearForRisshun,
   adjustMonthBySetsuiri,
   getRisshunDate,
-  getDaysBetween,
   calculateYearCenterStar,
   calculateStarAtPosition
 };

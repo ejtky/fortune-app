@@ -4,12 +4,8 @@ import React, { useState, useEffect } from "react";
 import type { NineStarKiReading } from "@/types/fortune";
 import { getPersonalityTraits, getStarInfo, getStarProfile } from "@/lib/fortune/database";
 import {
-  analyzeHonmeiMonthRelationship,
-  analyzeHonmeiDayRelationship,
   analyzeHonmeiMonthRelationshipEnhanced,
-  analyzeHonmeiDayRelationshipEnhanced,
   generateKeishaTokaiExplanation,
-  generateLifeInterpretation,
   generateLifeInterpretationEnhanced,
 } from "@/lib/fortune/nine-star-ki/detailed-explanations";
 
@@ -50,7 +46,6 @@ export default function NineStarDetailedProfile({
   // 拡張された詳細プロフィールデータ
   const [honmeiProfile, setHonmeiProfile] = useState<TraitRow | null>(null);
   const [monthProfile, setMonthProfile] = useState<TraitRow | null>(null);
-  const [dayProfile, setDayProfile] = useState<TraitRow | null>(null);
 
   useEffect(() => {
     async function loadDbData() {
@@ -64,10 +59,8 @@ export default function NineStarDetailedProfile({
         // 詳細プロフィールデータを取得
         const honmeiProf = await getStarProfile(reading.honmei);
         const monthProf = await getStarProfile(reading.getsumesei);
-        const dayProf = await getStarProfile(reading.nichisei);
         setHonmeiProfile(honmeiProf as TraitRow);
         setMonthProfile(monthProf as TraitRow);
-        setDayProfile(dayProf as TraitRow);
       } catch (error) {
         console.error("Failed to load DB data:", error);
       } finally {
@@ -75,7 +68,7 @@ export default function NineStarDetailedProfile({
       }
     }
     loadDbData();
-  }, [reading.honmei, reading.getsumesei, reading.nichisei]);
+  }, [reading.honmei, reading.getsumesei]);
 
   // 拡張版の関数を使用してより詳細で正確な説明を生成
   const monthRelation = analyzeHonmeiMonthRelationshipEnhanced(
@@ -84,18 +77,12 @@ export default function NineStarDetailedProfile({
     honmeiProfile,
     monthProfile
   );
-  const dayRelation = analyzeHonmeiDayRelationshipEnhanced(
-    reading.honmei,
-    reading.nichisei,
-    honmeiProfile,
-    dayProfile
-  );
   const keishaExplanation = generateKeishaTokaiExplanation(reading);
   const lifeInterpretation = generateLifeInterpretationEnhanced(reading, honmeiProfile);
 
   const sections = [
     { id: "essence" as const, label: "本質", icon: "🌟" },
-    { id: "relationship" as const, label: "三命の関係", icon: "☯️" },
+    { id: "relationship" as const, label: "二命の関係", icon: "☯️" },
     { id: "keisha" as const, label: "傾斜宮・同会星", icon: "🎯" },
     { id: "life" as const, label: "人生の道", icon: "🛤️" },
   ];
@@ -408,15 +395,15 @@ export default function NineStarDetailedProfile({
         </div>
       )}
 
-      {/* 三命の関係 */}
+      {/* 二命の関係 */}
       {activeSection === "relationship" && (
         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
           <div className="bg-gradient-to-r from-blue-50 to-cyan-50 p-6 rounded-lg border-2 border-blue-200">
             <h3 className="text-2xl font-bold text-blue-900 mb-3">
-              三命の関係性
+              二命の関係性
             </h3>
             <p className="text-sm text-gray-700 mb-4">
-              本命星（年命）・月命星・日命星の三つの星の関係性が、あなたの多面的な人格を形成しています。
+              本命星（年命）と月命星の二つの星の関係性が、あなたの多面的な人格を形成しています。
               それぞれの星がどのように影響し合い、調和しているかを理解することで、より深く自分を知ることができます。
             </p>
           </div>
@@ -480,68 +467,6 @@ export default function NineStarDetailedProfile({
                 アドバイス
               </p>
               <p className="text-sm text-gray-700">{monthRelation.advice}</p>
-            </div>
-          </div>
-
-          <div
-            className={`p-6 rounded-lg border-2 ${getHarmonyColor(
-              dayRelation.harmony
-            )}`}
-          >
-            <h4 className="text-xl font-bold mb-3">
-              本命星 × 日命星: {dayRelation.combination}
-            </h4>
-            <div className="mb-4">
-              <span
-                className={`px-3 py-1 rounded-full text-sm font-semibold ${
-                  dayRelation.harmony === "excellent"
-                    ? "bg-green-200 text-green-900"
-                    : dayRelation.harmony === "good"
-                    ? "bg-blue-200 text-blue-900"
-                    : dayRelation.harmony === "challenging"
-                    ? "bg-orange-200 text-orange-900"
-                    : "bg-gray-200 text-gray-900"
-                }`}
-              >
-                {dayRelation.harmony === "excellent"
-                  ? "最高の調和"
-                  : dayRelation.harmony === "good"
-                  ? "良好な関係"
-                  : dayRelation.harmony === "challenging"
-                  ? "課題あり"
-                  : "中立的"}
-              </span>
-            </div>
-            <p className="text-sm leading-relaxed mb-4">
-              {dayRelation.interpretation}
-            </p>
-            <div className="grid md:grid-cols-2 gap-4">
-              <div className="bg-white bg-opacity-60 p-4 rounded">
-                <h5 className="font-semibold text-green-800 mb-2">強み</h5>
-                <ul className="text-sm space-y-1">
-                  {dayRelation.strengths.map((s, i) => (
-                    <li key={i} className="text-gray-700">
-                      • {s}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-              <div className="bg-white bg-opacity-60 p-4 rounded">
-                <h5 className="font-semibold text-orange-800 mb-2">課題</h5>
-                <ul className="text-sm space-y-1">
-                  {dayRelation.challenges.map((c, i) => (
-                    <li key={i} className="text-gray-700">
-                      • {c}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            </div>
-            <div className="mt-4 p-3 bg-white bg-opacity-80 rounded border-l-4 border-blue-500">
-              <p className="text-sm font-semibold text-blue-900 mb-1">
-                アドバイス
-              </p>
-              <p className="text-sm text-gray-700">{dayRelation.advice}</p>
             </div>
           </div>
         </div>

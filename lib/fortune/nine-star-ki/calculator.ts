@@ -271,9 +271,7 @@ export function generateNineStarKiReading(birthDate: Date): NineStarKiReading {
   };
 }
 
-/**
- * テスト用エクスポート
- */
+// テスト用エクスポート
 export const _test = {
   adjustYearForRisshun,
   adjustMonthBySetsuiri,

@@ -15,11 +15,13 @@ export default function Header() {
           </Link>
         </div>
         
-        <nav className="hidden md:flex gap-6 text-sm font-medium text-gray-600">
-          <Link href="/about/kyusei_calendar" className="hover:text-purple-600 transition-colors">九星カレンダー</Link>
+        <nav className="hidden lg:flex gap-6 text-[11px] font-bold text-gray-500 uppercase tracking-widest">
+          <Link href="/daily/direction" className="hover:text-purple-600 transition-colors">今日</Link>
+          <Link href="/monthly/direction" className="hover:text-purple-600 transition-colors">今月</Link>
+          <Link href="/yearly/direction" className="hover:text-purple-600 transition-colors">今年</Link>
           <Link href="/search/direction" className="hover:text-purple-600 transition-colors">吉方位サーチ</Link>
+          <Link href="/about/kyusei_calendar" className="hover:text-purple-600 transition-colors">カレンダー</Link>
           <Link href="/search/map" className="hover:text-purple-600 transition-colors">開運マップ</Link>
-          <Link href="/manual" className="hover:text-purple-600 transition-colors">使い方</Link>
         </nav>
 
         <div className="md:hidden">

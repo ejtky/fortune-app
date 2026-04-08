@@ -17,7 +17,6 @@ function createStarReading(starId: number): NineStarKiReading {
   return {
     honmei: starId,
     getsumesei: starId, // 同じ星を仮設定
-    nichisei: starId,   // 同じ星を仮設定
     keishakyu: KEISHAKYU_MAP[starId],
     dokaisei: starId,   // 同じ星を仮設定
     starName: STAR_NAMES[starId],
@@ -26,7 +25,6 @@ function createStarReading(starId: number): NineStarKiReading {
     luckyColors: LUCKY_COLORS[starId],
     luckyDirections: LUCKY_DIRECTIONS[starId],
     monthStarName: STAR_NAMES[starId],
-    dayStarName: STAR_NAMES[starId],
     interpretation: {
       personality: `${STAR_NAMES[starId]}の基本的な性質`,
       talents: `${ELEMENT_MAP[starId]}の才能`,

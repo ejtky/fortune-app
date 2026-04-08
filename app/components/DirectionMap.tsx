@@ -2,7 +2,6 @@
 
 import { useEffect, useRef } from 'react';
 import L from 'leaflet';
-import 'leaflet/dist/leaflet.css';
 import type { DirectionalReading } from '@/lib/fortune/directional/calculator';
 import type { DirectionKey } from '@/lib/fortune/directional/constants';
 
@@ -52,6 +51,14 @@ export default function DirectionMap({ center, directionalReading }: DirectionMa
   const mapContainerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    if (!document.getElementById('leaflet-css')) {
+      const link = document.createElement('link');
+      link.id = 'leaflet-css';
+      link.rel = 'stylesheet';
+      link.href = 'https://unpkg.com/leaflet@1.7.1/dist/leaflet.css';
+      document.head.appendChild(link);
+    }
+
     if (!mapContainerRef.current || mapRef.current) return;
 
     // 地図を初期化

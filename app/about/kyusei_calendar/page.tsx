@@ -2,7 +2,6 @@
 
 import { useState } from 'react';
 import { STAR_NAMES } from '@/lib/fortune/nine-star-ki/constants';
-import { calculateDayStar } from '@/lib/fortune/nine-star-ki/calculator';
 import Link from 'next/link';
 import dayjs from 'dayjs';
 
@@ -21,7 +20,9 @@ export default function KyuseiCalendarPage() {
   // 今月の日付
   for (let i = 1; i <= daysInMonth; i++) {
     const date = currentDate.date(i).toDate();
-    const dayStar = calculateDayStar(date);
+    // 日命星の機能が削除されたため、カレンダーの機能調整または削除を検討する必要があります。
+    // 一時的にモック(本命星1)として表示を維持します。
+    const dayStar = 1;
     days.push({ day: i, star: dayStar, date: currentDate.date(i).format('YYYYMMDD') });
   }
 

@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, Polyline } from 'react-leaflet';
-import 'leaflet/dist/leaflet.css';
 
 interface FortuneMapProps {
   center: [number, number];
@@ -12,6 +11,14 @@ interface FortuneMapProps {
 export default function FortuneMap({ center, zoom = 13 }: FortuneMapProps) {
   // Leafletのデフォルトアイコン設定の修正（クライアントサイドのみ）
   useEffect(() => {
+    if (!document.getElementById('leaflet-css')) {
+      const link = document.createElement('link');
+      link.id = 'leaflet-css';
+      link.rel = 'stylesheet';
+      link.href = 'https://unpkg.com/leaflet@1.7.1/dist/leaflet.css';
+      document.head.appendChild(link);
+    }
+
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const L = require('leaflet');
     // eslint-disable-next-line @typescript-eslint/no-explicit-any

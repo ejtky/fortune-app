@@ -25,7 +25,7 @@ export default function CompatibilityPage() {
       {/* ヘッダー */}
       <header className="bg-gradient-to-r from-purple-600 to-pink-600 py-10 px-4 text-center animate-slideInDown">
         <div className="max-w-4xl mx-auto">
-          <h1 className="text-4xl md:text-5xl font-bold text-white mb-4">
+          <h1 className="text-2xl sm:text-4xl md:text-5xl font-bold text-white mb-4">
             💕 九星気学 相性診断
           </h1>
           <p className="text-purple-100 text-lg md:text-xl">

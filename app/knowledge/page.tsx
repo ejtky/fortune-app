@@ -158,7 +158,7 @@ function KnowledgeContent() {
               <label className="block text-gray-700 font-semibold mb-3">
                 九星で絞り込み
               </label>
-              <div className="grid grid-cols-5 md:grid-cols-10 gap-2">
+              <div className="grid grid-cols-5 sm:grid-cols-10 gap-2">
                 <button
                   type="button"
                   onClick={() => setSelectedStar(null)}

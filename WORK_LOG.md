@@ -88,7 +88,32 @@ fortune-app/
 
 ### 2026-04-09
 - `Obsidian/Antigravity/fortune-app` が本番プロジェクトと判明
-- `Obsidian/app` は設計書 + 試作計算ロジックのみ
-- 月命星バグを調査: `Antigravity` の `MONTH_STAR_TABLES` は正しい値を持つ
-- Vercel デプロイ済みサイトで月命星のバグを確認中
+- `Obsidian/app` を `Antigravity/fortune-app` に統合・削除
+- 月命星バグを調査: ローカルコードは正しかったが **git push 未実施** が原因
+- push 後に Vercel へ自動デプロイされ修正を確認 ✓
+- **教訓**: 「修正されない」バグは Vercel/GitHub の同期状態を先に確認する
+
+### 2026-04-09 マップ機能実装開始
+参考: https://kyusei.info/dokodemo-houi/
+
+**実装ファイル構成**
+```
+app/direction-map/page.tsx           作り直し（3カラムレイアウト）
+app/components/map/
+├── MapCore.tsx                      新規（Leafletコア）
+├── LeftSidebar.tsx                  新規（現在地・起点・検索）
+└── RightSidebar.tsx                 新規（方位線設定・九星盤・偏角）
+lib/fortune/directional/
+└── geodesic.ts                      新規（大圏線・等角線計算）
+app/page.tsx                         修正（localStorage保存追加）
+```
+
+**実装タスク**
+- [x] WORK_LOG 更新
+- [ ] geodesic.ts（大圏線・等角線計算）
+- [ ] MapCore.tsx（地図コア）
+- [ ] LeftSidebar.tsx（左パネル）
+- [ ] RightSidebar.tsx（右パネル）
+- [ ] direction-map/page.tsx（全体レイアウト）
+- [ ] page.tsx（localStorage保存 + マップ遷移ボタン）
 

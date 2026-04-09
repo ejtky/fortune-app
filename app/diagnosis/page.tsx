@@ -44,11 +44,11 @@ export default function DiagnosisPage() {
       {/* プレミアムな背景装飾 */}
       <div className="fixed inset-0 opacity-[0.03] pointer-events-none bg-[url('https://www.transparenttextures.com/patterns/handmade-paper.png')]" />
       
-      <div className="relative max-w-5xl mx-auto px-6 py-12">
+      <div className="relative max-w-5xl mx-auto px-4 sm:px-6 py-8 sm:py-12">
         {/* 和風モダンヘッダー */}
-        <header className="text-center mb-16">
+        <header className="text-center mb-8 sm:mb-16">
           <div className="inline-block relative">
-            <h1 className="text-4xl md:text-5xl font-black font-serif tracking-[0.2em] text-stone-800 mb-4 px-8 py-2 border-y-2 border-stone-800">
+            <h1 className="text-2xl sm:text-4xl md:text-5xl font-black font-serif tracking-[0.1em] sm:tracking-[0.2em] text-stone-800 mb-4 px-4 sm:px-8 py-2 border-y-2 border-stone-800">
               九星気学 × 玄空飛星
             </h1>
             <div className="absolute -top-4 -right-4 w-12 h-12 border-t-2 border-r-2 border-amber-500 opacity-50" />
@@ -63,7 +63,7 @@ export default function DiagnosisPage() {
           {/* 左カラム：入力と主要診断 */}
           <div className="lg:col-span-12 xl:col-span-7 space-y-12">
             {/* 生年月日入力セクション */}
-            <section className="bg-white/60 backdrop-blur-sm border border-stone-200 rounded-3xl p-8 shadow-xl">
+            <section className="bg-white/60 backdrop-blur-sm border border-stone-200 rounded-3xl p-4 sm:p-8 shadow-xl">
               <h2 className="text-xl font-bold font-serif mb-6 flex items-center gap-2 text-stone-800">
                 <span className="w-1.5 h-6 bg-amber-600 rounded-full" />
                 宿命の鑑定（生年月日）

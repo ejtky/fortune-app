@@ -6,7 +6,7 @@ export default function Footer() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="grid md:grid-cols-3 gap-8 mb-8 text-sm">
           <div>
-            <h3 className="font-bold mb-3 border-b border-slate-600 pb-2">九星気学 八雲院について</h3>
+            <h3 className="font-bold mb-3 border-b border-slate-600 pb-2">九星気学・方位学鑑定について</h3>
             <p className="text-slate-300 leading-relaxed">
               伝統的な九星気学に基づき、正確な方位盤と運勢情報を提供する無料占いサイトです。
             </p>
@@ -28,7 +28,7 @@ export default function Footer() {
           </div>
         </div>
         <div className="text-center text-slate-400 text-sm border-t border-slate-700 pt-4">
-          © {new Date().getFullYear()} 九星気学 八雲院 (Fortune App Clone)
+          © {new Date().getFullYear()} 九星気学・方位学鑑定
         </div>
       </div>
     </footer>

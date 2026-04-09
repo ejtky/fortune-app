@@ -1,240 +1,262 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import dynamic from 'next/dynamic';
-import { diagnoseNineStar } from '@/lib/fortune/nine-star-calculator';
+import LeftSidebar from '@/app/components/map/LeftSidebar';
+import RightSidebar from '@/app/components/map/RightSidebar';
+import type { MapSettings } from '@/app/components/map/MapCore';
+import { calculateMainStar } from '@/lib/fortune/nine-star-calculator';
 import { generateDirectionalReading } from '@/lib/fortune/directional/calculator';
 import type { DirectionalReading } from '@/lib/fortune/directional/calculator';
-import type { DirectionKey } from '@/lib/fortune/directional/constants';
 
-// Leaflet を動的インポート（SSR回避）
-const MapWithNoSSR = dynamic(() => import('../components/DirectionMap'), {
+const MapCore = dynamic(() => import('@/app/components/map/MapCore'), {
   ssr: false,
   loading: () => (
-    <div className="h-[600px] bg-gray-100 rounded-xl flex items-center justify-center">
-      <div className="text-gray-500">地図を読み込み中...</div>
+    <div className="flex-1 bg-slate-100 flex items-center justify-center text-slate-400">
+      地図を読み込み中...
     </div>
   ),
 });
 
-export default function DirectionMapPage() {
-  const [birthDate, setBirthDate] = useState('');
-  const [targetDate, setTargetDate] = useState(new Date().toISOString().split('T')[0]);
-  const [currentLocation, setCurrentLocation] = useState<{ lat: number; lng: number } | null>(null);
-  const [directionalReading, setDirectionalReading] = useState<DirectionalReading | null>(null);
-  const [loading, setLoading] = useState(false);
+const DEFAULT_SETTINGS: MapSettings = {
+  showDirectionLines: true,
+  showCompass: false,
+  showTrackingLine: false,
+  showControls: true,
+  lineType: 'great',
+  division: '45',
+  compassDivision: '45',
+  compassLineType: 'great',
+  declinationDeg: 0,
+  declinationMin: 0,
+  declinationDir: 'west',
+  showBoardOnMap: false,
+};
 
-  // 現在地を取得
+function nowDateTimeLocal() {
+  const now = new Date();
+  // datetime-local の形式: YYYY-MM-DDTHH:MM
+  return now.toISOString().slice(0, 16);
+}
+
+export default function DirectionMapPage() {
+  const [origin, setOrigin] = useState<{ lat: number; lng: number } | null>(null);
+  const [destination, setDestination] = useState<{ lat: number; lng: number } | null>(null);
+  const [birthDate, setBirthDate] = useState('');
+  const [targetDateTime, setTargetDateTime] = useState(nowDateTimeLocal());
+  const [boardType, setBoardType] = useState<'year' | 'month' | 'day'>('month');
+  const [settings, setSettings] = useState<MapSettings>(DEFAULT_SETTINGS);
+  const [showMarkers, setShowMarkers] = useState(true);
+  const [directionalReading, setDirectionalReading] = useState<DirectionalReading | null>(null);
+  const [flyToOrigin, setFlyToOrigin] = useState(false);
+  const [flyToDestination, setFlyToDestination] = useState(false);
+  const [mobilePanel, setMobilePanel] = useState<'none' | 'left' | 'right'>('none');
+
+  // localStorage から生年月日を自動読み込み
   useEffect(() => {
+    const saved = localStorage.getItem('kyusei_birthDate');
+    if (saved) {
+      setBirthDate(saved);
+    }
+    // 現在地を取得
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
-        (position) => {
-          setCurrentLocation({
-            lat: position.coords.latitude,
-            lng: position.coords.longitude,
-          });
-        },
-        (error) => {
-          console.error('位置情報の取得に失敗:', error);
-          // デフォルト位置（東京）
-          setCurrentLocation({ lat: 35.6762, lng: 139.6503 });
-        }
+        pos => setOrigin({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+        () => setOrigin({ lat: 35.6762, lng: 139.6503 })
       );
     } else {
-      // デフォルト位置（東京）
-      setCurrentLocation({ lat: 35.6762, lng: 139.6503 });
+      setOrigin({ lat: 35.6762, lng: 139.6503 });
     }
   }, []);
 
-  const handleAnalyze = () => {
-    if (!birthDate) {
-      alert('生年月日を入力してください');
-      return;
+  // 生年月日が設定されたら自動計算
+  useEffect(() => {
+    if (birthDate && origin) {
+      calculate(birthDate, targetDateTime);
     }
+  }, [birthDate, origin]); // eslint-disable-line react-hooks/exhaustive-deps
 
-    setLoading(true);
-
+  const calculate = useCallback((bd: string, dt: string) => {
+    if (!bd) return;
     try {
-      const birth = new Date(birthDate);
-      const diagnosis = diagnoseNineStar(birth);
-      const target = new Date(targetDate);
-      const reading = generateDirectionalReading(target, diagnosis.mainStar.number);
-
+      const birth = new Date(bd);
+      const honmei = calculateMainStar(birth);
+      const date = new Date(dt);
+      const reading = generateDirectionalReading(date, honmei);
       setDirectionalReading(reading);
-    } catch (error) {
-      console.error('分析エラー:', error);
-      alert('分析中にエラーが発生しました');
-    } finally {
-      setLoading(false);
+      // localStorage に保存
+      localStorage.setItem('kyusei_birthDate', bd);
+    } catch (e) {
+      console.error(e);
+    }
+  }, []);
+
+  const handleCalculate = () => calculate(birthDate, targetDateTime);
+
+  const handleSetCurrentTime = () => {
+    const now = nowDateTimeLocal();
+    setTargetDateTime(now);
+    calculate(birthDate, now);
+  };
+
+  const handleCurrentLocation = () => {
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        pos => {
+          setOrigin({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+          setFlyToOrigin(true);
+        },
+        () => alert('位置情報の取得に失敗しました')
+      );
     }
   };
 
+  const handleReset = () => {
+    setOrigin({ lat: 35.6762, lng: 139.6503 });
+    setDestination(null);
+    setBirthDate('');
+    setTargetDateTime(nowDateTimeLocal());
+    setSettings(DEFAULT_SETTINGS);
+    setDirectionalReading(null);
+    setShowMarkers(true);
+    localStorage.removeItem('kyusei_birthDate');
+  };
+
+  const handleSettingsChange = (partial: Partial<MapSettings>) => {
+    setSettings(prev => ({ ...prev, ...partial }));
+  };
+
+  const handleBirthDateChange = (v: string) => {
+    setBirthDate(v);
+    calculate(v, targetDateTime);
+  };
+
+  const handleTargetDateTimeChange = (v: string) => {
+    setTargetDateTime(v);
+  };
+
+  const sidebarProps = {
+    left: {
+      onCurrentLocation: handleCurrentLocation,
+      onFlyToOrigin: () => setFlyToOrigin(true),
+      onFlyToDestination: () => setFlyToDestination(true),
+      onSetOrigin: (pos: { lat: number; lng: number; label?: string }) => { setOrigin(pos); setFlyToOrigin(true); setMobilePanel('none'); },
+      onSetDestination: (pos: { lat: number; lng: number; label?: string }) => { setDestination(pos); setFlyToDestination(true); setMobilePanel('none'); },
+      onReset: handleReset,
+      showMarkers,
+      onToggleMarkers: setShowMarkers,
+      hasOrigin: !!origin,
+      hasDestination: !!destination,
+    },
+    right: {
+      settings,
+      onSettingsChange: handleSettingsChange,
+      birthDate,
+      onBirthDateChange: handleBirthDateChange,
+      targetDateTime,
+      onTargetDateTimeChange: handleTargetDateTimeChange,
+      boardType,
+      onBoardTypeChange: setBoardType,
+      onCalculate: handleCalculate,
+      onSetCurrentTime: handleSetCurrentTime,
+    },
+  };
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 p-8">
-      <div className="max-w-7xl mx-auto">
-        {/* ヘッダー */}
-        <div className="text-center mb-8">
-          <h1 className="text-5xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent mb-4">
-            吉方位マップ
-          </h1>
-          <p className="text-gray-600 text-lg">
-            あなたの吉方位・凶方位を地図上で確認できます
-          </p>
-        </div>
-
-        {/* 入力フォーム */}
-        <div className="bg-white rounded-2xl shadow-2xl p-8 mb-8">
-          <div className="grid md:grid-cols-2 gap-6 mb-6">
-            <div>
-              <label className="block text-gray-700 font-semibold mb-3">
-                生年月日
-              </label>
-              <input
-                type="date"
-                value={birthDate}
-                onChange={(e) => setBirthDate(e.target.value)}
-                className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:outline-none focus:ring-4 focus:ring-blue-300 focus:border-blue-500 transition-all"
-              />
-            </div>
-
-            <div>
-              <label className="block text-gray-700 font-semibold mb-3">
-                判定日（旅行・引越し予定日）
-              </label>
-              <input
-                type="date"
-                value={targetDate}
-                onChange={(e) => setTargetDate(e.target.value)}
-                className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:outline-none focus:ring-4 focus:ring-blue-300 focus:border-blue-500 transition-all"
-              />
-            </div>
-          </div>
-
-          <button
-            onClick={handleAnalyze}
-            disabled={loading || !birthDate}
-            className="w-full bg-gradient-to-r from-blue-600 to-purple-600 text-white py-4 rounded-xl font-bold text-lg hover:from-blue-700 hover:to-purple-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg hover:shadow-xl"
-          >
-            {loading ? '分析中...' : '吉方位を表示'}
-          </button>
-        </div>
-
-        {/* 地図表示 */}
-        {currentLocation && directionalReading && (
-          <div className="space-y-6">
-            {/* 地図 */}
-            <div className="bg-white rounded-2xl shadow-2xl p-6">
-              <h2 className="text-2xl font-bold text-gray-800 mb-4 border-b-4 border-blue-500 pb-3">
-                方位盤マップ
-              </h2>
-              <MapWithNoSSR
-                center={currentLocation}
-                directionalReading={directionalReading}
-              />
-            </div>
-
-            {/* 方位別詳細情報 */}
-            <div className="bg-white rounded-2xl shadow-2xl p-8">
-              <h2 className="text-2xl font-bold text-gray-800 mb-6 border-b-4 border-purple-500 pb-3">
-                方位別詳細
-              </h2>
-
-              <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4">
-                {directionalReading.directions.map((info) => {
-                  const isGood = info.quality === 'excellent' || info.quality === 'good';
-                  const isBad = info.quality === 'avoid' || info.quality === 'caution';
-
-
-                  return (
-                      <div
-                        key={info.direction}
-
-                      className={`rounded-xl p-6 border-2 transition-all cursor-pointer hover:shadow-lg ${
-                        isGood
-                          ? 'bg-gradient-to-br from-green-50 to-green-25 border-green-300'
-                          : isBad
-                          ? 'bg-gradient-to-br from-red-50 to-red-25 border-red-300'
-                          : 'bg-gradient-to-br from-gray-50 to-gray-25 border-gray-300'
-                      }`}
-                    >
-                      <div className="text-center mb-3">
-                        <div className="text-3xl mb-2">{getDirectionEmoji(info.direction)}</div>
-                        <div className="font-bold text-xl text-gray-800">{info.directionName}</div>
-                      </div>
-
-
-                      <div className="space-y-2 text-sm">
-                        <div className="flex justify-between items-center">
-                          <span className="text-gray-600">総合判定:</span>
-                          <span className={`font-bold px-3 py-1 rounded-full ${
-                            isGood ? 'bg-green-200 text-green-800' :
-                            isBad ? 'bg-red-200 text-red-800' :
-                            'bg-gray-200 text-gray-800'
-                          }`}>
-                            {isGood ? '吉' : isBad ? '凶' : '平'}
-                          </span>
-                        </div>
-
-                        <div className="bg-white/80 rounded-lg p-3 mt-3">
-                          <div className="text-xs text-gray-600 mb-2">九星:</div>
-                          <div className="flex flex-wrap gap-1">
-                            <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded">年:{info.yearStar}</span>
-                            <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded">月:{info.monthStar}</span>
-                          </div>
-                        </div>
-
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* アドバイス */}
-            <div className="bg-gradient-to-r from-blue-50 to-purple-50 rounded-2xl shadow-lg p-8 border-l-4 border-blue-500">
-              <h2 className="text-2xl font-bold text-blue-900 mb-4">💡 アドバイス</h2>
-              <div className="space-y-3 text-gray-700">
-                <p>• <strong>吉方位（緑色）</strong>：この方向への旅行や引越しは運気アップが期待できます</p>
-                <p>• <strong>凶方位（赤色）</strong>：この方向への移動は避けるか、十分な準備が必要です</p>
-                <p>• <strong>平方位（灰色）</strong>：特に大きな影響はありません</p>
-                <p>• 75km以上離れた場所への移動で方位の影響を受けるとされています</p>
-                <p>• 一泊二日以上の滞在で、方位のエネルギーを十分に取り入れられます</p>
-              </div>
-            </div>
+    <div className="h-[100dvh] flex flex-col overflow-hidden">
+      {/* ヘッダー */}
+      <header className="bg-white border-b border-slate-200 px-3 py-2 flex items-center gap-3 z-10 flex-shrink-0">
+        <h1 className="font-bold font-serif text-slate-800 text-base sm:text-lg whitespace-nowrap">
+          🧭 吉方位マップ
+        </h1>
+        {directionalReading && (
+          <div className="hidden sm:flex items-center gap-2 text-xs text-slate-500 min-w-0">
+            <span className="truncate">本命星: <strong className="text-indigo-600">{getStarName(directionalReading.honmeiStar)}</strong></span>
+            <span>|</span>
+            <span className="truncate">{new Date(targetDateTime).toLocaleDateString('ja-JP')} {boardType === 'year' ? '年盤' : boardType === 'month' ? '月盤' : '日盤'}</span>
           </div>
         )}
-
-        {/* 初期メッセージ */}
-        {!directionalReading && !loading && (
-          <div className="bg-white rounded-2xl shadow-2xl p-12 text-center">
-            <div className="text-6xl mb-6">🧭</div>
-            <h3 className="text-2xl font-bold text-gray-800 mb-4">
-              吉方位を地図で確認
-            </h3>
-            <p className="text-gray-600">
-              生年月日と判定日を入力してください。
-              <br />
-              あなたの吉方位・凶方位を地図上に表示します。
-            </p>
+        {!birthDate && (
+          <div className="text-xs text-amber-600 bg-amber-50 px-2 py-1 rounded-full border border-amber-200 whitespace-nowrap">
+            生年月日を入力
           </div>
+        )}
+        {/* モバイルパネルボタン */}
+        <div className="lg:hidden ml-auto flex gap-2">
+          <button
+            onClick={() => setMobilePanel(v => v === 'left' ? 'none' : 'left')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${mobilePanel === 'left' ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-600'}`}
+          >
+            🔍 場所
+          </button>
+          <button
+            onClick={() => setMobilePanel(v => v === 'right' ? 'none' : 'right')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${mobilePanel === 'right' ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-600'}`}
+          >
+            ⚙️ 設定
+          </button>
+        </div>
+      </header>
+
+      {/* 本体 */}
+      <div className="flex flex-1 overflow-hidden relative">
+        {/* PC: 左サイドバー常時表示 / モバイル: ドロワー */}
+        <div className={`
+          lg:static lg:flex lg:w-52 lg:flex-shrink-0
+          ${mobilePanel === 'left'
+            ? 'absolute inset-y-0 left-0 z-20 w-64 flex flex-col shadow-xl'
+            : 'hidden lg:flex'}
+        `}>
+          <LeftSidebar {...sidebarProps.left} />
+        </div>
+
+        {/* 地図 */}
+        <div className="flex-1 relative overflow-hidden">
+          {origin && (
+            <MapCore
+              origin={origin}
+              destination={destination}
+              directionalReading={directionalReading}
+              settings={settings}
+              showMarkers={showMarkers}
+              onMapClick={(lat, lng) => { setDestination({ lat, lng }); setMobilePanel('none'); }}
+              onOriginChange={pos => { setOrigin(pos); }}
+              flyToOrigin={flyToOrigin}
+              flyToDestination={flyToDestination}
+              onFlyDone={() => { setFlyToOrigin(false); setFlyToDestination(false); }}
+            />
+          )}
+          {!origin && (
+            <div className="flex items-center justify-center bg-slate-100 h-full text-slate-400">
+              位置情報を取得中...
+            </div>
+          )}
+        </div>
+
+        {/* PC: 右サイドバー常時表示 / モバイル: ドロワー */}
+        <div className={`
+          lg:static lg:flex lg:w-56 lg:flex-shrink-0
+          ${mobilePanel === 'right'
+            ? 'absolute inset-y-0 right-0 z-20 w-64 flex flex-col shadow-xl'
+            : 'hidden lg:flex'}
+        `}>
+          <RightSidebar {...sidebarProps.right} />
+        </div>
+
+        {/* モバイルドロワー背景オーバーレイ */}
+        {mobilePanel !== 'none' && (
+          <div
+            className="lg:hidden absolute inset-0 z-10 bg-black/30"
+            onClick={() => setMobilePanel('none')}
+          />
         )}
       </div>
     </div>
   );
 }
 
-// 方位の絵文字を取得
-function getDirectionEmoji(direction: DirectionKey): string {
-  const emojis: Record<DirectionKey, string> = {
-    N: '⬆️',
-    NE: '↗️',
-    E: '➡️',
-    SE: '↘️',
-    S: '⬇️',
-    SW: '↙️',
-    W: '⬅️',
-    NW: '↖️',
-    CENTER: '🏠',
-  };
-  return emojis[direction] || '📍';
-}
+const STAR_NAMES: Record<number, string> = {
+  1: '一白水星', 2: '二黒土星', 3: '三碧木星', 4: '四緑木星', 5: '五黄土星',
+  6: '六白金星', 7: '七赤金星', 8: '八白土星', 9: '九紫火星',
+};
+function getStarName(n: number) { return STAR_NAMES[n] ?? `${n}星`; }

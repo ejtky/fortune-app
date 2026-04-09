@@ -237,17 +237,17 @@ export default function CalendarPage() {
             </div>
 
             {/* カレンダーグリッド */}
-            <div className="grid grid-cols-7 gap-2">
+            <div className="grid grid-cols-7 gap-0.5 sm:gap-2">
               {calendarData.map((day, idx) => (
                 <div
                   key={idx}
-                  className={`border-2 rounded-lg p-3 min-h-[120px] transition-all hover:shadow-lg ${getDayStyle(
+                  className={`border rounded-md sm:rounded-lg p-1 sm:p-3 min-h-[60px] sm:min-h-[120px] transition-all hover:shadow-lg ${getDayStyle(
                     day
-                  )} ${isToday(day.date) ? 'ring-4 ring-purple-400' : ''}`}
+                  )} ${isToday(day.date) ? 'ring-2 sm:ring-4 ring-purple-400' : ''}`}
                 >
                   {/* 日付 */}
                   <div
-                    className={`text-lg font-bold mb-2 ${
+                    className={`text-xs sm:text-lg font-bold mb-0.5 sm:mb-2 ${
                       isToday(day.date)
                         ? 'text-purple-600'
                         : day.isCurrentMonth
@@ -257,7 +257,7 @@ export default function CalendarPage() {
                   >
                     {day.date.getDate()}
                     {isToday(day.date) && (
-                      <span className="ml-1 text-xs bg-purple-600 text-white px-2 py-0.5 rounded-full">
+                      <span className="hidden sm:inline ml-1 text-xs bg-purple-600 text-white px-2 py-0.5 rounded-full">
                         今日
                       </span>
                     )}
@@ -265,9 +265,9 @@ export default function CalendarPage() {
 
                   {/* スコア */}
                   {day.isCurrentMonth && (
-                    <div className="space-y-1">
+                    <div className="space-y-0.5 sm:space-y-1">
                       <div
-                        className={`text-xs px-2 py-1 rounded-full text-center font-bold ${
+                        className={`text-[9px] sm:text-xs px-1 sm:px-2 py-0.5 sm:py-1 rounded-full text-center font-bold ${
                           day.score >= 75
                             ? 'bg-green-200 text-green-800'
                             : day.score >= 55
@@ -292,16 +292,11 @@ export default function CalendarPage() {
 
                       {/* 吉方位 */}
                       {day.goodDirections.length > 0 && (
-                        <div className="text-xs text-green-700">
-                          <div className="font-semibold">吉: {day.goodDirections.length}</div>
-                        </div>
+                        <div className="hidden sm:block text-xs text-green-700 font-semibold">吉: {day.goodDirections.length}</div>
                       )}
-
                       {/* 凶方位 */}
                       {day.badDirections.length > 0 && (
-                        <div className="text-xs text-red-700">
-                          <div className="font-semibold">凶: {day.badDirections.length}</div>
-                        </div>
+                        <div className="hidden sm:block text-xs text-red-700 font-semibold">凶: {day.badDirections.length}</div>
                       )}
                     </div>
                   )}

@@ -67,7 +67,7 @@ export default async function KyuseiCharacterPage({ params }: PageProps) {
       {/* 共通ヘッダー */}
       <header className="bg-[#533D5B] py-10 px-4 text-center">
         <div className="max-w-4xl mx-auto">
-          <h1 className="text-4xl md:text-5xl font-bold text-white mb-4">
+          <h1 className="text-2xl sm:text-4xl md:text-5xl font-bold text-white mb-4">
             {knowledge.star_name}
           </h1>
           <p className="text-purple-100 text-lg md:text-xl">

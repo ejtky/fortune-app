@@ -19,16 +19,16 @@ export default function YearlyDirectionPage() {
           <div className="inline-flex items-center gap-2 px-4 py-1 bg-amber-50 text-amber-700 rounded-full text-xs font-black tracking-widest uppercase">
             <Sparkles className="w-3 h-3" /> Annual Luck Directions
           </div>
-          <h1 className="text-4xl font-black font-serif text-slate-800 tracking-tight">
+          <h1 className="text-2xl sm:text-4xl font-black font-serif text-slate-800 tracking-tight">
             今年の吉方位
           </h1>
-          <p className="text-slate-600 font-medium text-lg">
+          <p className="text-slate-600 font-medium text-base sm:text-lg">
             {currentYear}年 の年間総合開運方位
           </p>
         </header>
 
         {/* 本命星選択セクション */}
-        <section className="bg-white p-8 rounded-[2rem] shadow-sm border border-amber-100/50 space-y-6">
+        <section className="bg-white p-4 sm:p-8 rounded-[2rem] shadow-sm border border-amber-100/50 space-y-6">
           <div className="flex items-center justify-between">
             <h2 className="text-sm font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
               <Info className="w-4 h-4" /> 本命星を選択してください
@@ -42,7 +42,7 @@ export default function YearlyDirectionPage() {
         </section>
 
         {/* 年間メッセージ */}
-        <section className="bg-white p-8 md:p-10 rounded-[2.5rem] border border-stone-100 shadow-sm relative overflow-hidden group">
+        <section className="bg-white p-4 sm:p-8 md:p-10 rounded-[2.5rem] border border-stone-100 shadow-sm relative overflow-hidden group">
            <div className="absolute top-0 left-0 w-1.5 h-full bg-amber-500 group-hover:w-2.5 transition-all duration-500" />
            <div className="flex flex-col md:flex-row gap-8 items-center">
              <div className="w-24 h-24 rounded-full bg-amber-50 flex items-center justify-center text-4xl shrink-0">

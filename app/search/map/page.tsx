@@ -27,7 +27,7 @@ function MapSearchContent() {
         </Link>
       </div>
 
-      <div className="h-[600px] w-full rounded-xl overflow-hidden shadow-lg border border-slate-200">
+      <div className="h-[300px] sm:h-[600px] w-full rounded-xl overflow-hidden shadow-lg border border-slate-200">
         <MapComponent center={[35.6812, 139.7671]} zoom={9} />
       </div>
       

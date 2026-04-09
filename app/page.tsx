@@ -133,9 +133,9 @@ export default function Home() {
       {/* Hero Section */}
       <section className="text-center space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-700">
         <h1 className="text-3xl md:text-5xl font-bold font-serif text-slate-800 tracking-wider">
-          九星気学 八雲院
+          九星気学・方位学鑑定
           <span className="block text-sm md:text-base font-sans font-normal text-slate-500 mt-4 tracking-normal">
-            伝統と信頼の九星気学・方位学鑑定
+            伝統と信頼の九星気学に基づく方位・運勢鑑定
           </span>
         </h1>
         <p className="text-slate-600 max-w-2xl mx-auto leading-relaxed">

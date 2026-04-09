@@ -80,11 +80,11 @@ export default function FortunePage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-yellow-50 via-orange-50 to-red-50 p-8">
+    <div className="min-h-screen bg-gradient-to-br from-yellow-50 via-orange-50 to-red-50 p-4 sm:p-8">
       <div className="max-w-6xl mx-auto">
         {/* ヘッダー */}
         <div className="text-center mb-8">
-          <h1 className="text-5xl font-bold bg-gradient-to-r from-orange-600 to-red-600 bg-clip-text text-transparent mb-4">
+          <h1 className="text-3xl sm:text-5xl font-bold bg-gradient-to-r from-orange-600 to-red-600 bg-clip-text text-transparent mb-4">
             運勢予測
           </h1>
           <p className="text-gray-600 text-lg">
@@ -93,7 +93,7 @@ export default function FortunePage() {
         </div>
 
         {/* 入力フォーム */}
-        <div className="bg-white rounded-2xl shadow-2xl p-8 mb-8">
+        <div className="bg-white rounded-2xl shadow-2xl p-4 sm:p-8 mb-8">
           <div className="grid md:grid-cols-2 gap-6 mb-6">
             <div>
               <label className="block text-gray-700 font-semibold mb-3">
@@ -133,10 +133,10 @@ export default function FortunePage() {
         {prediction && (
           <div className="space-y-6">
             {/* 総合運勢 */}
-            <div className={`rounded-2xl shadow-2xl p-8 border-2 ${getLevelBg(prediction.overall.level)}`}>
+            <div className={`rounded-2xl shadow-2xl p-4 sm:p-8 border-2 ${getLevelBg(prediction.overall.level)}`}>
               <div className="flex items-center justify-between mb-6">
                 <div>
-                  <h2 className="text-3xl font-bold text-gray-800 mb-2">
+                  <h2 className="text-xl sm:text-3xl font-bold text-gray-800 mb-2">
                     {getLevelEmoji(prediction.overall.level)} {prediction.overall.title}
                   </h2>
                   <div className="text-sm text-gray-600">
@@ -155,7 +155,7 @@ export default function FortunePage() {
                   <p className="text-gray-700">{prediction.overall.advice}</p>
                 </div>
 
-                <div className="grid md:grid-cols-3 gap-4 mt-4">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
                   <div className="bg-white/80 rounded-lg p-4">
                     <div className="text-xs text-gray-600 mb-1">ラッキーカラー</div>
                     <div className="font-bold text-gray-800">{prediction.overall.luckyColor}</div>
@@ -173,7 +173,7 @@ export default function FortunePage() {
             </div>
 
             {/* 日運・月運・年運 */}
-            <div className="grid md:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               {/* 日運 */}
               <div className={`rounded-xl shadow-lg p-6 border-2 ${getLevelBg(prediction.daily.level)}`}>
                 <div className="text-center mb-4">

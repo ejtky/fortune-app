@@ -85,9 +85,9 @@ export default function FortuneMap() {
     : null;
 
   return (
-    <div className="min-h-screen p-8 bg-gradient-to-br from-purple-100 via-pink-50 to-blue-100">
+    <div className="min-h-screen p-4 sm:p-8 bg-gradient-to-br from-purple-100 via-pink-50 to-blue-100">
       <div className="max-w-7xl mx-auto">
-        <h1 className="text-4xl font-bold text-center mb-2 text-purple-900">🗺️ 開運マップ</h1>
+        <h1 className="text-2xl sm:text-4xl font-bold text-center mb-2 text-purple-900">🗺️ 開運マップ</h1>
         <p className="text-center text-gray-600 mb-6">地図と方位盤を連動させて吉凶方位をチェック</p>
 
         {/* 生年月日入力 */}

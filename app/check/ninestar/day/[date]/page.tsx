@@ -56,7 +56,7 @@ export default function NineStarDetailPage({ params }: PageProps) {
       {/* ヘッダーセクション */}
       <header className="bg-[#533D5B] transition-colors py-10 px-4 text-center">
         <div className="max-w-6xl mx-auto">
-          <h1 className="text-4xl md:text-5xl font-bold text-white mb-4">
+          <h1 className="text-2xl sm:text-4xl md:text-5xl font-bold text-white mb-4">
             {dateStr.substring(0, 4)}年{dateStr.substring(4, 6)}月{dateStr.substring(6, 8)}日 生まれ
           </h1>
           <p className="text-purple-100 text-lg md:text-xl">
@@ -81,15 +81,15 @@ export default function NineStarDetailPage({ params }: PageProps) {
           {/* 左カラム: 九星プロフィール */}
           <div className="lg:col-span-2 space-y-12">
             <section>
-              <h2 className="text-3xl font-bold text-[#4A225D] mb-6 border-b-2 border-purple-100 pb-2">
+              <h2 className="text-xl sm:text-3xl font-bold text-[#4A225D] mb-6 border-b-2 border-purple-100 pb-2">
                 宿命の九星プロフィール
               </h2>
-              <div className="bg-white rounded-2xl shadow-sm border border-purple-50 p-6 md:p-10 leading-relaxed text-lg">
+              <div className="bg-white rounded-2xl shadow-sm border border-purple-50 p-4 sm:p-6 md:p-10 leading-relaxed text-base sm:text-lg">
                 <NineStarDetailedProfile reading={reading} />
               </div>
             </section>
 
-            <section className="bg-gradient-to-br from-purple-50 to-white p-8 rounded-3xl border border-purple-100 shadow-sm">
+            <section className="bg-gradient-to-br from-purple-50 to-white p-4 sm:p-8 rounded-3xl border border-purple-100 shadow-sm">
               <h3 className="text-2xl font-bold text-[#5D4264] mb-6 flex items-center">
                 <span className="mr-3 text-3xl">💡</span> 今日のアドバイス
               </h3>

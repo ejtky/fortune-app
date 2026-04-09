@@ -182,7 +182,7 @@ export default function YearFortunePage() {
             <div className="bg-white p-6 rounded-lg border-2 border-indigo-200">
               <h2 className="text-2xl font-bold text-indigo-900 mb-6">📆 月ごとの運勢</h2>
 
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
                 {yearFortune.monthlyFortunes.map((monthFortune) => (
                   <div
                     key={monthFortune.month}

@@ -16,7 +16,7 @@ const notoSerifJP = Noto_Serif_JP({
 });
 
 export const metadata: Metadata = {
-  title: "九星気学 八雲院 (クローン)",
+  title: "九星気学・方位学鑑定",
   description: "伝統的な九星気学などの占いサイト",
 };
 

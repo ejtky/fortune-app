@@ -56,19 +56,19 @@ export default function KyuseiCalendarPage() {
         </div>
         <div className="grid grid-cols-7">
           {days.map((d, i) => (
-            <div key={i} className={`min-h-[100px] p-2 border-b border-r border-slate-100 transition-colors hover:bg-purple-50/50 group relative ${!d ? 'bg-slate-50/30' : ''}`}>
+            <div key={i} className={`min-h-[60px] sm:min-h-[100px] p-1 sm:p-2 border-b border-r border-slate-100 transition-colors hover:bg-purple-50/50 group relative ${!d ? 'bg-slate-50/30' : ''}`}>
               {d && (
                 <>
-                  <span className={`text-sm font-bold ${i % 7 === 0 ? 'text-red-500' : i % 7 === 6 ? 'text-blue-500' : 'text-slate-700'}`}>{d.day}</span>
-                  <div className="mt-2 text-center">
-                    <div className={`inline-block w-2.5 h-2.5 rounded-full mb-1.5 ${starColors[d.star]}`} />
-                    <div className="text-[10px] font-bold text-slate-400 leading-none">{STAR_NAMES[d.star]}</div>
+                  <span className={`text-xs sm:text-sm font-bold ${i % 7 === 0 ? 'text-red-500' : i % 7 === 6 ? 'text-blue-500' : 'text-slate-700'}`}>{d.day}</span>
+                  <div className="mt-1 sm:mt-2 text-center">
+                    <div className={`inline-block w-2 h-2 sm:w-2.5 sm:h-2.5 rounded-full mb-0.5 sm:mb-1.5 ${starColors[d.star]}`} />
+                    <div className="hidden sm:block text-[10px] font-bold text-slate-400 leading-none">{STAR_NAMES[d.star]}</div>
                   </div>
-                  <Link 
+                  <Link
                     href={`/check/ninestar/day/${d.date}`}
                     className="absolute inset-0 opacity-0 group-hover:opacity-100 bg-white/60 backdrop-blur-[1px] flex items-center justify-center transition-all duration-300"
                   >
-                    <span className="bg-white px-3 py-1.5 rounded-full text-xs font-bold text-purple-700 shadow-sm border border-purple-100 transform scale-90 group-hover:scale-100 transition-transform">詳細</span>
+                    <span className="bg-white px-2 sm:px-3 py-1 sm:py-1.5 rounded-full text-xs font-bold text-purple-700 shadow-sm border border-purple-100 transform scale-90 group-hover:scale-100 transition-transform">詳細</span>
                   </Link>
                 </>
               )}

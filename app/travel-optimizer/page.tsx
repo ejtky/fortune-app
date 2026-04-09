@@ -120,20 +120,20 @@ export default function TravelOptimizerPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50 p-8">
+    <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50 p-4 sm:p-8">
       <div className="max-w-6xl mx-auto">
         {/* ヘッダー */}
         <div className="text-center mb-8">
-          <h1 className="text-5xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent mb-4">
+          <h1 className="text-3xl sm:text-5xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent mb-4">
             旅行日程最適化
           </h1>
-          <p className="text-gray-600 text-lg">
+          <p className="text-gray-600 text-base sm:text-lg">
             指定期間内で最も吉方位が多い日を見つけます
           </p>
         </div>
 
         {/* 入力フォーム */}
-        <div className="bg-white rounded-2xl shadow-2xl p-8 mb-8">
+        <div className="bg-white rounded-2xl shadow-2xl p-4 sm:p-8 mb-8">
           <div className="space-y-6">
             <div>
               <label className="block text-gray-700 font-semibold mb-3">
@@ -208,12 +208,12 @@ export default function TravelOptimizerPage() {
         {analysis.length > 0 && (
           <div className="space-y-6">
             {/* トップ3のおすすめ日 */}
-            <div className="bg-white rounded-2xl shadow-2xl p-8">
+            <div className="bg-white rounded-2xl shadow-2xl p-4 sm:p-8">
               <h2 className="text-2xl font-bold text-gray-800 mb-6 border-b-4 border-indigo-500 pb-3">
                 🌟 おすすめトップ3
               </h2>
 
-              <div className="grid md:grid-cols-3 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 {analysis.slice(0, 3).map((day, idx) => (
                   <div
                     key={day.date}
@@ -279,7 +279,7 @@ export default function TravelOptimizerPage() {
             </div>
 
             {/* 全期間のカレンダー */}
-            <div className="bg-white rounded-2xl shadow-2xl p-8">
+            <div className="bg-white rounded-2xl shadow-2xl p-4 sm:p-8">
               <h2 className="text-2xl font-bold text-gray-800 mb-6 border-b-4 border-purple-500 pb-3">
                 📅 全期間の分析結果
               </h2>

@@ -36,16 +36,16 @@ export default function DailyDirectionPage() {
           <div className="inline-flex items-center gap-2 px-4 py-1 bg-purple-50 text-purple-700 rounded-full text-xs font-black tracking-widest uppercase">
             <Calendar className="w-3 h-3" /> Daily Luck Directions
           </div>
-          <h1 className="text-4xl font-black font-serif text-slate-800 tracking-tight">
+          <h1 className="text-2xl sm:text-4xl font-black font-serif text-slate-800 tracking-tight">
             今日の吉方位
           </h1>
-          <p className="text-slate-500 font-medium text-lg">
+          <p className="text-slate-500 font-medium text-base sm:text-lg">
             {formatDate(today)} の運勢と開運方位
           </p>
         </header>
 
         {/* 本命星選択セクション */}
-        <section className="bg-white p-8 rounded-[2rem] shadow-sm border border-slate-100 space-y-6">
+        <section className="bg-white p-4 sm:p-8 rounded-[2rem] shadow-sm border border-slate-100 space-y-6">
           <div className="flex items-center justify-between">
             <h2 className="text-sm font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
               <Info className="w-4 h-4" /> 本命星を選択してください

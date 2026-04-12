@@ -161,6 +161,7 @@ export default function RightSidebar({
       <div className="p-3 border-b border-slate-100">
         <SectionTitle>表示切り替え</SectionTitle>
         <div className="space-y-0.5">
+          <CheckRow label="方位線" checked={settings.showDirectionLines} onChange={v => toggle('showDirectionLines', v)} />
           <CheckRow label="方位色" checked={settings.showColors} onChange={v => toggle('showColors', v)} />
           <CheckRow label="コンパス" checked={settings.showCompass} onChange={v => toggle('showCompass', v)} />
           <CheckRow label="地図コントロール" checked={settings.showControls} onChange={v => toggle('showControls', v)} />

@@ -39,6 +39,7 @@ export interface DirectionAnalysis {
 export interface DirectionalReading {
   date: Date;
   honmeiStar: number;
+  tsukimeiStar?: number;
   loshuBoards: LoshuBoards;
   directions: DirectionAnalysis[];
   bestDirections: DirectionKey[];
@@ -60,9 +61,11 @@ export function analyzeDirection(
   direction: DirectionKey,
   loshuBoards: LoshuBoards,
   honmeiStar: number,
-  satsuList: SatsuInfo[]
+  satsuList: SatsuInfo[],
+  boardType: 'year' | 'month' | 'day'
 ): DirectionAnalysis {
   // 各盤でのこの方位の星を取得
+  const targetStar = getStarAtDirection(loshuBoards[boardType], direction);
   const yearStar = getStarAtDirection(loshuBoards.year, direction);
   const monthStar = getStarAtDirection(loshuBoards.month, direction);
   const dayStar = getStarAtDirection(loshuBoards.day, direction);
@@ -71,8 +74,8 @@ export function analyzeDirection(
   const satsu = getSatsuAtDirection(satsuList, direction);
   const dangerScore = evaluateDirectionDanger(satsuList, direction);
 
-  // 吉方位かどうかの判定（年星と月星の両方が重要）
-  const isLucky = isLuckyDirection(direction, honmeiStar, yearStar, monthStar, dayStar);
+  // 吉方位かどうかの判定（選択された盤の星で判定）
+  const isLucky = isLuckyDirection(honmeiStar, targetStar);
 
   // スコア計算（0-100）
   let score = 50; // 基本スコア
@@ -88,17 +91,9 @@ export function analyzeDirection(
     score += 40; // 殺がない吉方位のみ加点
   }
 
-  // 五行の相性で調整（年星）
-  const elementScore = evaluateElementCompatibility(honmeiStar, yearStar);
-  score += elementScore * 0.7; // 年星の影響
-
-  // 月星の影響
-  const monthElementScore = evaluateElementCompatibility(honmeiStar, monthStar);
-  score += monthElementScore * 0.5; // 月星の影響
-
-  // 日星の影響も加える（毎日変動させるため）
-  const dayElementScore = evaluateElementCompatibility(honmeiStar, dayStar);
-  score += dayElementScore * 0.3; // 日星の影響は最も小さく
+  // 五行の相性で調整
+  const elementScore = evaluateElementCompatibility(honmeiStar, targetStar);
+  score += elementScore;
 
   // スコアを 0-100 に正規化
   score = Math.max(0, Math.min(100, score));
@@ -107,7 +102,7 @@ export function analyzeDirection(
   const quality = scoreToQuality(score);
 
   // 理由の生成
-  const reason = generateReason(direction, quality, isLucky, satsu, yearStar);
+  const reason = generateReason(direction, quality, isLucky, satsu, targetStar);
 
   return {
     direction,
@@ -126,96 +121,63 @@ export function analyzeDirection(
 /**
  * 吉方位かどうかを判定
  *
- * @param direction 方位
- * @param honmeiStar 本命星
- * @param yearStar その方位の年星
- * @param monthStar その方位の月星
- * @param dayStar その方位の日星
+ * @param honmeiStar 本命星（判定基準星）
+ * @param targetStar 盤の星
  * @returns 吉方位かどうか
  */
 function isLuckyDirection(
-  direction: DirectionKey,
   honmeiStar: number,
-  yearStar: number,
-  monthStar: number,
-  dayStar: number
+  targetStar: number
 ): boolean {
-  // 本命星と相生関係にある星がある方位は吉
-  const isYearStarLucky = isElementGenerating(honmeiStar, yearStar);
-  const isMonthStarLucky = isElementGenerating(honmeiStar, monthStar);
-  const isDayStarLucky = isElementGenerating(honmeiStar, dayStar);
-
-  // 年星と月星が両方相生なら本当の吉方位
-  if (isYearStarLucky && isMonthStarLucky) {
-    return true;
-  }
-
-  // 年星が相生で、月星が相剋でなければ準吉方位
-  const isMonthStarBad = isElementControlling(honmeiStar, monthStar);
-  if (isYearStarLucky && !isMonthStarBad) {
-    return true;
-  }
-
-  // 日星の影響は短期的な影響のみ（単独では吉方位にならない）
-  return false;
+  return isElementGenerating(honmeiStar, targetStar);
 }
 
 /**
- * 五行の相生関係をチェック
+ * 五行の相生関係（吉関係）をチェック
  *
- * @param star1 星1
- * @param star2 星2
- * @returns star1がstar2を生じる関係か
+ * @param star1 自分の星
+ * @param star2 相手（盤）の星
+ * @returns 吉関係（生気・退気・比和）か
  */
 function isElementGenerating(star1: number, star2: number): boolean {
-  // 五行のマッピング
   const elementMap: Record<number, string> = {
     1: '水', 2: '土', 3: '木', 4: '木',
     5: '土', 6: '金', 7: '金', 8: '土', 9: '火'
   };
 
-  // 相生の関係
   const generating: Record<string, string> = {
-    '木': '火',
-    '火': '土',
-    '土': '金',
-    '金': '水',
-    '水': '木'
+    '木': '火', '火': '土', '土': '金', '金': '水', '水': '木'
   };
 
   const element1 = elementMap[star1];
   const element2 = elementMap[star2];
 
-  return generating[element1] === element2;
+  // 相手が自分を生じる（生気）、自分が相手を生じる（退気）、同じ（比和）は吉
+  return generating[element2] === element1 || generating[element1] === element2 || element1 === element2;
 }
 
 /**
- * 五行の相剋関係をチェック
+ * 五行の相剋関係（凶関係）をチェック
  *
- * @param star1 星1
- * @param star2 星2
- * @returns star1がstar2を剋する関係か
+ * @param star1 自分の星
+ * @param star2 相手（盤）の星
+ * @returns 凶関係（死気・殺気）か
  */
 function isElementControlling(star1: number, star2: number): boolean {
-  // 五行のマッピング
   const elementMap: Record<number, string> = {
     1: '水', 2: '土', 3: '木', 4: '木',
     5: '土', 6: '金', 7: '金', 8: '土', 9: '火'
   };
 
-  // 相剋の関係
   const controlling: Record<string, string> = {
-    '木': '土',
-    '土': '水',
-    '水': '火',
-    '火': '金',
-    '金': '木'
+    '木': '土', '土': '水', '水': '火', '火': '金', '金': '木'
   };
 
   const element1 = elementMap[star1];
   const element2 = elementMap[star2];
 
-  return controlling[element1] === element2;
+  // 自分が相手を剋する（死気）、相手が自分を剋する（殺気）
+  return controlling[element1] === element2 || controlling[element2] === element1;
 }
 
 /**
@@ -244,12 +206,16 @@ function evaluateElementCompatibility(honmeiStar: number, directionStar: number)
     '木': '土', '土': '水', '水': '火', '火': '金', '金': '木'
   };
 
-  if (generating[element1] === element2) {
-    return 20; // 相生
+  if (generating[element2] === element1) {
+    return 30; // 生気（大吉）
+  } else if (generating[element1] === element2) {
+    return 20; // 退気（吉）
+  } else if (controlling[element2] === element1) {
+    return -30; // 殺気（大凶）
   } else if (controlling[element1] === element2) {
-    return -20; // 相剋
+    return -20; // 死気（凶）
   } else if (element1 === element2) {
-    return 10; // 同じ
+    return 10; // 比和（吉）
   }
 
   return 0; // 普通
@@ -303,33 +269,34 @@ function generateReason(
  *
  * @param date 日付
  * @param honmeiStar 本命星
+ * @param tsukimeiStar 月命星（省略可。指定すると月命殺・月命的殺も計算）
+ * @param boardType 評価対象の盤（year, month, day）
  * @returns 方位学の読み取り結果
  */
 export function generateDirectionalReading(
   date: Date,
-  honmeiStar: number
+  honmeiStar: number,
+  tsukimeiStar?: number,
+  boardType: 'year' | 'month' | 'day' = 'month'
 ): DirectionalReading {
   // 洛書盤を計算
   const loshuBoards = calculateAllLoshuBoards(date);
 
-  // 年盤、月盤、日盤の殺を全て計算してマージ
-  const yearSatsu = calculateAllSatsu(loshuBoards.year, honmeiStar);
-  const monthSatsu = calculateAllSatsu(loshuBoards.month, honmeiStar);
-  const daySatsu = calculateAllSatsu(loshuBoards.day, honmeiStar);
+  // 選択された盤タイプの殺のみを計算
+  let targetLoshuLayout;
+  if (boardType === 'year') {
+    targetLoshuLayout = loshuBoards.year;
+  } else if (boardType === 'month') {
+    targetLoshuLayout = loshuBoards.month;
+  } else {
+    targetLoshuLayout = loshuBoards.day;
+  }
 
-  // 全ての殺をマージ（重複排除）
-  const satsuMap = new Map<string, SatsuInfo>();
-  [...yearSatsu, ...monthSatsu, ...daySatsu].forEach(satsu => {
-    const key = `${satsu.direction}-${satsu.type}`;
-    if (!satsuMap.has(key) || satsuMap.get(key)!.severity === 'medium') {
-      satsuMap.set(key, satsu);
-    }
-  });
-  const satsuList = Array.from(satsuMap.values());
+  const satsuList = calculateAllSatsu(targetLoshuLayout, honmeiStar, tsukimeiStar);
 
   // 全方位を分析
   const directions = (Object.keys(DIRECTIONS) as DirectionKey[]).map(direction =>
-    analyzeDirection(direction, loshuBoards, honmeiStar, satsuList)
+    analyzeDirection(direction, loshuBoards, honmeiStar, satsuList, boardType)
   );
 
   // ベスト3とワースト3を抽出
@@ -348,6 +315,7 @@ export function generateDirectionalReading(
   return {
     date,
     honmeiStar,
+    tsukimeiStar,
     loshuBoards,
     directions,
     bestDirections,
@@ -355,6 +323,13 @@ export function generateDirectionalReading(
     luckyDirections,
     summary
   };
+}
+
+/**
+ * 殺のseverityを数値に変換（比較用）
+ */
+function severityRank(severity: 'critical' | 'high' | 'medium'): number {
+  return severity === 'critical' ? 3 : severity === 'high' ? 2 : 1;
 }
 
 /**

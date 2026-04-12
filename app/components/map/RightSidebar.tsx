@@ -2,6 +2,8 @@
 
 import type { DivisionType, LineType, MapSettings } from './MapCore';
 
+export type StarMode = 'honmei' | 'tsukimei' | 'nichimei';
+
 interface RightSidebarProps {
   settings: MapSettings;
   onSettingsChange: (s: Partial<MapSettings>) => void;
@@ -13,6 +15,11 @@ interface RightSidebarProps {
   onBoardTypeChange: (v: 'year' | 'month' | 'day') => void;
   onCalculate: () => void;
   onSetCurrentTime: () => void;
+  selectedModes: StarMode[];
+  onSelectedModesChange: (v: StarMode[]) => void;
+  honmeiStarName?: string;
+  tsukimeiStarName?: string;
+  nichimeiStarName?: string;
 }
 
 const BOARD_LABELS: Record<'year' | 'month' | 'day', string> = {
@@ -31,7 +38,18 @@ export default function RightSidebar({
   onBoardTypeChange,
   onCalculate,
   onSetCurrentTime,
+  selectedModes,
+  onSelectedModesChange,
+  honmeiStarName,
+  tsukimeiStarName,
+  nichimeiStarName,
 }: RightSidebarProps) {
+  const toggleMode = (mode: StarMode) => {
+    const isOn = selectedModes.includes(mode);
+    onSelectedModesChange(
+      isOn ? selectedModes.filter(m => m !== mode) : [...selectedModes, mode]
+    );
+  };
   const currentIdx = BOARD_ORDER.indexOf(boardType);
   const prevBoard = () => onBoardTypeChange(BOARD_ORDER[(currentIdx + 2) % 3]);
   const nextBoard = () => onBoardTypeChange(BOARD_ORDER[(currentIdx + 1) % 3]);
@@ -90,13 +108,61 @@ export default function RightSidebar({
   return (
     <aside className="w-56 flex-shrink-0 bg-white border-l border-slate-200 flex flex-col text-sm overflow-y-auto">
 
+      {/* 命星切り替え（最上部） */}
+      <div className="p-3 border-b border-slate-100">
+        <SectionTitle>命星モード（複数選択可）</SectionTitle>
+        <div className="flex rounded-lg overflow-hidden border border-slate-200">
+          {/* 本命星 */}
+          <button
+            onClick={() => toggleMode('honmei')}
+            className={`flex-1 py-1.5 text-xs font-bold transition-colors ${
+              selectedModes.includes('honmei') ? 'bg-indigo-600 text-white' : 'bg-white text-slate-500 hover:bg-slate-50'
+            }`}
+          >
+            本命星
+            <span className={`block text-[10px] font-normal leading-tight ${selectedModes.includes('honmei') ? 'text-indigo-200' : 'text-slate-400'}`}>
+              {honmeiStarName ?? '—'}
+            </span>
+          </button>
+          {/* 月命星 */}
+          <button
+            onClick={() => toggleMode('tsukimei')}
+            disabled={!tsukimeiStarName}
+            className={`flex-1 py-1.5 text-xs font-bold transition-colors border-l border-slate-200 ${
+              selectedModes.includes('tsukimei')
+                ? 'bg-violet-600 text-white'
+                : tsukimeiStarName ? 'bg-white text-slate-500 hover:bg-slate-50' : 'bg-slate-50 text-slate-300 cursor-not-allowed'
+            }`}
+          >
+            月命星
+            <span className={`block text-[10px] font-normal leading-tight ${selectedModes.includes('tsukimei') ? 'text-violet-200' : 'text-slate-400'}`}>
+              {tsukimeiStarName ?? '—'}
+            </span>
+          </button>
+          {/* 日命星 */}
+          <button
+            onClick={() => toggleMode('nichimei')}
+            disabled={!nichimeiStarName}
+            className={`flex-1 py-1.5 text-xs font-bold transition-colors border-l border-slate-200 ${
+              selectedModes.includes('nichimei')
+                ? 'bg-teal-600 text-white'
+                : nichimeiStarName ? 'bg-white text-slate-500 hover:bg-slate-50' : 'bg-slate-50 text-slate-300 cursor-not-allowed'
+            }`}
+          >
+            日命星
+            <span className={`block text-[10px] font-normal leading-tight ${selectedModes.includes('nichimei') ? 'text-teal-200' : 'text-slate-400'}`}>
+              {nichimeiStarName ?? '—'}
+            </span>
+          </button>
+        </div>
+      </div>
+
       {/* 表示切り替え */}
       <div className="p-3 border-b border-slate-100">
         <SectionTitle>表示切り替え</SectionTitle>
         <div className="space-y-0.5">
-          <CheckRow label="方位線" checked={settings.showDirectionLines} onChange={v => toggle('showDirectionLines', v)} />
+          <CheckRow label="方位色" checked={settings.showColors} onChange={v => toggle('showColors', v)} />
           <CheckRow label="コンパス" checked={settings.showCompass} onChange={v => toggle('showCompass', v)} />
-          <CheckRow label="追っかけ線" checked={settings.showTrackingLine} onChange={v => toggle('showTrackingLine', v)} />
           <CheckRow label="地図コントロール" checked={settings.showControls} onChange={v => toggle('showControls', v)} />
         </div>
       </div>
@@ -199,6 +265,25 @@ export default function RightSidebar({
           checked={settings.showBoardOnMap}
           onChange={v => toggle('showBoardOnMap', v)}
         />
+      </div>
+
+      {/* 凡例 */}
+      <div className="p-3 border-b border-slate-100">
+        <SectionTitle>凡例</SectionTitle>
+        <div className="space-y-1">
+          {[
+            { color: '#10b981', label: '大吉' },
+            { color: '#3b82f6', label: '吉' },
+            { color: '#6b7280', label: '平' },
+            { color: '#f59e0b', label: '小凶' },
+            { color: '#ef4444', label: '凶' },
+          ].map(item => (
+            <div key={item.label} className="flex items-center gap-2">
+              <div className="w-3 h-3 rounded-sm flex-shrink-0" style={{ background: item.color }} />
+              <span className="text-xs text-slate-600">{item.label}</span>
+            </div>
+          ))}
+        </div>
       </div>
 
       {/* 偏角設定 */}

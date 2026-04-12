@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { generateNineStarKiReading } from '@/lib/fortune/nine-star-ki/calculator';
+import { calculateHonmeiStar, calculateMonthStar } from '@/lib/fortune/nine-star-ki/calculator';
 import { generateDirectionalReading } from '@/lib/fortune/directional/calculator';
 import type { DirectionKey } from '@/lib/fortune/directional/constants';
 import LoshuBoard from '../components/LoshuBoard';
@@ -18,9 +18,10 @@ export default function FortuneMap() {
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [activeLoshuBoard, setActiveLoshuBoard] = useState<'year' | 'month' | 'day'>('month');
   const [honmeiStar, setHonmeiStar] = useState<number | null>(null);
+  const [tsukimeiStar, setTsukimeiStar] = useState<number | null>(null);
 
-  // 方位計算
-  const calculateDirection = (from: { lat: number; lng: number }, to: { lat: number; lng: number }) => {
+  // 方位計算（DirectionKey を返す）
+  const calculateDirection = (from: { lat: number; lng: number }, to: { lat: number; lng: number }): DirectionKey => {
     const dLon = to.lng - from.lng;
     const y = Math.sin(dLon * Math.PI / 180) * Math.cos(to.lat * Math.PI / 180);
     const x = Math.cos(from.lat * Math.PI / 180) * Math.sin(to.lat * Math.PI / 180) -
@@ -28,15 +29,21 @@ export default function FortuneMap() {
     let bearing = Math.atan2(y, x) * 180 / Math.PI;
     bearing = (bearing + 360) % 360;
 
-    // 方位の判定（8方位）
-    if (bearing >= 337.5 || bearing < 22.5) return '北';
-    if (bearing >= 22.5 && bearing < 67.5) return '北東';
-    if (bearing >= 67.5 && bearing < 112.5) return '東';
-    if (bearing >= 112.5 && bearing < 157.5) return '南東';
-    if (bearing >= 157.5 && bearing < 202.5) return '南';
-    if (bearing >= 202.5 && bearing < 247.5) return '南西';
-    if (bearing >= 247.5 && bearing < 292.5) return '西';
-    return '北西';
+    // 方位の判定（8方位） → DirectionKey で返す
+    if (bearing >= 337.5 || bearing < 22.5) return 'N';
+    if (bearing >= 22.5 && bearing < 67.5) return 'NE';
+    if (bearing >= 67.5 && bearing < 112.5) return 'E';
+    if (bearing >= 112.5 && bearing < 157.5) return 'SE';
+    if (bearing >= 157.5 && bearing < 202.5) return 'S';
+    if (bearing >= 202.5 && bearing < 247.5) return 'SW';
+    if (bearing >= 247.5 && bearing < 292.5) return 'W';
+    return 'NW';
+  };
+
+  // DirectionKey を日本語に変換
+  const directionToJa: Record<DirectionKey, string> = {
+    N: '北', NE: '北東', E: '東', SE: '南東',
+    S: '南', SW: '南西', W: '西', NW: '北西', CENTER: '中宮'
   };
 
   // 距離計算（ハバーサイン公式）
@@ -52,11 +59,14 @@ export default function FortuneMap() {
     return R * c;
   };
 
-  // 生年月日から本命星を計算
+  // 生年月日から本命星・月命星を計算
   const handleCalculate = () => {
     if (!birthDate) return;
-    const result = generateNineStarKiReading(new Date(birthDate));
-    setHonmeiStar(result.honmei);
+    const birth = new Date(birthDate);
+    const honmei = calculateHonmeiStar(birth);
+    const tsukimei = calculateMonthStar(birth, honmei);
+    setHonmeiStar(honmei);
+    setTsukimeiStar(tsukimei);
   };
 
   // 目的地設定（デモ用の主要都市）
@@ -81,7 +91,7 @@ export default function FortuneMap() {
   };
 
   const directionalReading = honmeiStar
-    ? generateDirectionalReading(new Date(selectedDate), honmeiStar)
+    ? generateDirectionalReading(new Date(selectedDate), honmeiStar, tsukimeiStar ?? undefined)
     : null;
 
   return (
@@ -169,7 +179,7 @@ export default function FortuneMap() {
                     <p className="text-sm">Leaflet.jsまたはGoogle Maps APIで実装予定</p>
                     {targetLocation && (
                       <div className="mt-4 bg-white p-4 rounded-lg inline-block">
-                        <p className="font-semibold">方位: {direction}</p>
+                        <p className="font-semibold">方位: {direction ? directionToJa[direction] : ''}</p>
                         <p className="text-sm">距離: {distance?.toFixed(1)} km</p>
                       </div>
                     )}
@@ -183,7 +193,7 @@ export default function FortuneMap() {
                   <h3 className="text-lg font-bold mb-4 text-gray-800">方位の吉凶</h3>
                   <div className="bg-purple-50 p-4 rounded-lg">
                     <p className="text-xl font-bold text-purple-900 mb-2">
-                      {direction}方向
+                      {direction ? directionToJa[direction] : ''}方向
                     </p>
                     <p className="text-sm text-gray-700">
                       距離: {distance?.toFixed(1)} km

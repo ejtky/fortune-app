@@ -15,6 +15,8 @@ export type SatsuType =
   | 'anken'       // 暗剣殺 - 五黄殺の対極方位
   | 'honmei'      // 本命殺 - 本命星のある方位
   | 'honmeiteki'  // 本命的殺 - 本命殺の対極方位
+  | 'tsukimei'    // 月命殺 - 月命星のある方位
+  | 'tsukimeiteki' // 月命的殺 - 月命殺の対極方位
   | 'saiha';      // 歳破 - 年の対極方位
 
 /**
@@ -133,6 +135,68 @@ export function calculateHonmeiSatsu(
 }
 
 /**
+ * 月命殺を計算
+ *
+ * 自分の月命星のある方位
+ *
+ * @param layout 洛書配置
+ * @param tsukimeiStar 月命星
+ * @returns 月命殺の情報
+ */
+export function calculateTsukimeiSatsu(
+  layout: LoshuLayout,
+  tsukimeiStar: number
+): SatsuInfo | null {
+  const direction = getDirectionOfStar(layout, tsukimeiStar);
+
+  if (!direction || direction === 'CENTER') {
+    return null;
+  }
+
+  return {
+    type: 'tsukimei',
+    name: '月命殺',
+    direction,
+    severity: 'high',
+    description: 'あなたの月命星のある方位。月単位の個人的な凶方位です。重要な外出や移動は避けた方が良いでしょう。'
+  };
+}
+
+/**
+ * 月命的殺を計算
+ *
+ * 月命殺の対極方位
+ *
+ * @param layout 洛書配置
+ * @param tsukimeiStar 月命星
+ * @returns 月命的殺の情報
+ */
+export function calculateTsukimeiTekiSatsu(
+  layout: LoshuLayout,
+  tsukimeiStar: number
+): SatsuInfo | null {
+  const tsukimeiDirection = getDirectionOfStar(layout, tsukimeiStar);
+
+  if (!tsukimeiDirection || tsukimeiDirection === 'CENTER') {
+    return null;
+  }
+
+  const tekiDirection = getOppositeDirection(tsukimeiDirection);
+
+  if (tekiDirection === 'CENTER') {
+    return null;
+  }
+
+  return {
+    type: 'tsukimeiteki',
+    name: '月命的殺',
+    direction: tekiDirection,
+    severity: 'medium',
+    description: '月命殺の対極方位。月命殺ほどではありませんが、注意が必要な方位です。'
+  };
+}
+
+/**
  * 本命的殺を計算
  *
  * 本命殺の対極方位
@@ -202,11 +266,13 @@ export function calculateSaiha(layout: LoshuLayout): SatsuInfo | null {
  *
  * @param layout 洛書配置
  * @param honmeiStar 本命星
+ * @param tsukimeiStar 月命星（省略可）
  * @returns 全ての殺のリスト
  */
 export function calculateAllSatsu(
   layout: LoshuLayout,
-  honmeiStar: number
+  honmeiStar: number,
+  tsukimeiStar?: number
 ): SatsuInfo[] {
   const satsuList: SatsuInfo[] = [];
 
@@ -221,6 +287,15 @@ export function calculateAllSatsu(
 
   const honmeiteki = calculateHonmeiTekiSatsu(layout, honmeiStar);
   if (honmeiteki) satsuList.push(honmeiteki);
+
+  // 月命星が指定されている場合のみ月命殺・月命的殺を計算
+  if (tsukimeiStar !== undefined) {
+    const tsukimei = calculateTsukimeiSatsu(layout, tsukimeiStar);
+    if (tsukimei) satsuList.push(tsukimei);
+
+    const tsukimeiteki = calculateTsukimeiTekiSatsu(layout, tsukimeiStar);
+    if (tsukimeiteki) satsuList.push(tsukimeiteki);
+  }
 
   const saiha = calculateSaiha(layout);
   if (saiha) satsuList.push(saiha);

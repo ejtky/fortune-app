@@ -172,25 +172,6 @@ export default function LeftSidebar({
         </label>
       </div>
 
-      {/* 凡例 */}
-      <div className="p-3 border-b border-slate-100">
-        <div className="text-xs text-slate-500 mb-2 font-medium">凡例</div>
-        <div className="space-y-1 text-xs">
-          {[
-            { color: '#10b981', label: '大吉' },
-            { color: '#3b82f6', label: '吉' },
-            { color: '#6b7280', label: '平' },
-            { color: '#f59e0b', label: '小凶' },
-            { color: '#ef4444', label: '凶' },
-          ].map(item => (
-            <div key={item.label} className="flex items-center gap-2">
-              <div className="w-3 h-3 rounded-sm flex-shrink-0" style={{ background: item.color }} />
-              <span className="text-slate-600">{item.label}</span>
-            </div>
-          ))}
-        </div>
-      </div>
-
       {/* 地図クリックの説明 */}
       <div className="p-3 border-b border-slate-100">
         <div className="text-xs text-slate-400 leading-relaxed">

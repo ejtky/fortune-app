@@ -27,11 +27,18 @@ L.Icon.Default.mergeOptions({
 export type LineType = 'great' | 'rhumb';
 export type DivisionType = '30_60' | '45' | '24';
 
+export interface DirectionalReadingEntry {
+  modeName: string;   // '本命', '月命', '日命'
+  modeColor: string;  // ヘッダーバッジの色
+  reading: DirectionalReading;
+}
+
 export interface MapSettings {
   showDirectionLines: boolean;
   showCompass: boolean;
   showTrackingLine: boolean;
   showControls: boolean;
+  showColors: boolean;
   lineType: LineType;
   division: DivisionType;
   compassDivision: DivisionType;
@@ -45,7 +52,7 @@ export interface MapSettings {
 export interface MapCoreProps {
   origin: { lat: number; lng: number } | null;
   destination: { lat: number; lng: number } | null;
-  directionalReading: DirectionalReading | null;
+  directionalReadings: DirectionalReadingEntry[];
   settings: MapSettings;
   showMarkers: boolean;
   onMapClick: (lat: number, lng: number) => void;
@@ -60,17 +67,26 @@ const DIRECTION_CENTER_ANGLES: Record<DirectionKey, number> = {
   S: 180, SW: 225, W: 270, NW: 315, CENTER: 0,
 };
 
-interface HoverInfo {
-  color: string;
-  label: string;
+// 複数命星モードを重ねるときの線種（本命=実線、月命=破線、日命=点線）
+const LINE_DASHES: (string | undefined)[] = [undefined, '8 4', '2 4'];
+
+interface HoverEntry {
+  modeName: string;
+  modeColor: string;
+  qualityColor: string;
   qualityLabel: string;
   reason: string;
+}
+
+interface HoverInfo {
+  dirLabel: string;
+  entries: HoverEntry[];
 }
 
 export default function MapCore({
   origin,
   destination,
-  directionalReading,
+  directionalReadings,
   settings,
   showMarkers,
   onMapClick,
@@ -201,8 +217,8 @@ export default function MapCore({
     layersRef.current.forEach(l => l.remove());
     layersRef.current = [];
 
-    const sectorDist = 5000000; // 5000km（北極超えを避ける上限）
-    const lineDist   = 9000000; // 9000km（方位線は折り返しても線なので許容）
+    const sectorDist = 5000000;
+    const lineDist   = 9000000;
 
     const addLayer = (layer: L.Layer) => {
       layer.addTo(map);
@@ -231,92 +247,109 @@ export default function MapCore({
       }).bindPopup(`<strong>⛳ 目的地</strong><br/>方位: ${label}（${Math.round(bearing)}°）`));
     }
 
-    if (!directionalReading) return;
+    // ① 各 reading のカラーゾーン + 方位線を順に描画
+    if (directionalReadings.length > 0) {
+      directionalReadings.forEach(({ modeName, modeColor, reading }, readingIdx) => {
+        const directions = reading.directions.filter(d => d.direction !== 'CENTER');
+        const dashArray = LINE_DASHES[readingIdx % LINE_DASHES.length];
 
-    const directions = directionalReading.directions.filter(d => d.direction !== 'CENTER');
-    const sectorAngles = DIVISION_ANGLES[settings.division];
-    const sectorWidth = 360 / sectorAngles.length;
+        // ① カラーゾーン
+        sectorAngles.forEach(bearingDeg => {
+          const nearest = directions.reduce((prev, curr) => {
+            const dp = Math.abs(((bearingDeg - DIRECTION_CENTER_ANGLES[prev.direction] + 180) % 360) - 180);
+            const dc = Math.abs(((bearingDeg - DIRECTION_CENTER_ANGLES[curr.direction] + 180) % 360) - 180);
+            return dc < dp ? curr : prev;
+          });
+          const color = settings.showColors ? QUALITY_COLORS[nearest.quality] : '#9ca3af';
+          const dirLabel = settings.division === '24'
+            ? NIJUSHISAN.find(m => m.angle === bearingDeg)?.label ?? `${bearingDeg}°`
+            : nearest.directionName;
 
-    // ① 方位カラーゾーン（大圏固定）
-    sectorAngles.forEach(bearingDeg => {
-      const nearest = directions.reduce((prev, curr) => {
-        const dp = Math.abs(((bearingDeg - DIRECTION_CENTER_ANGLES[prev.direction] + 180) % 360) - 180);
-        const dc = Math.abs(((bearingDeg - DIRECTION_CENTER_ANGLES[curr.direction] + 180) % 360) - 180);
-        return dc < dp ? curr : prev;
-      });
-      const color = QUALITY_COLORS[nearest.quality];
-      const qualityLabel = nearest.quality === 'excellent' ? '大吉' : nearest.quality === 'good' ? '吉' : nearest.quality === 'neutral' ? '平' : nearest.quality === 'caution' ? '小凶' : '凶';
-      const dirLabel = settings.division === '24'
-        ? NIJUSHISAN.find(m => m.angle === bearingDeg)?.label ?? `${bearingDeg}°`
-        : nearest.directionName;
+          const startAngle = bearingDeg - sectorWidth / 2;
+          const endAngle   = bearingDeg + sectorWidth / 2;
+          const sideSteps  = 20;
+          const arcSteps   = Math.max(8, Math.round(sectorWidth * 2));
+          const sectorLineFunc = settings.lineType === 'rhumb' ? rhumbLine : greatCircleLine;
 
-      const startAngle = bearingDeg - sectorWidth / 2;
-      const endAngle = bearingDeg + sectorWidth / 2;
-      const sideSteps = 20; // 辺の大圏ポイント数（方位線と同様に曲線になる）
-      const arcSteps  = Math.max(8, Math.round(sectorWidth * 2));
+          const leftSide = sectorLineFunc(origin.lat, origin.lng, applyDecl(startAngle), sectorDist, sideSteps);
+          const arcPts: L.LatLngExpression[] = [];
+          for (let i = 0; i <= arcSteps; i++) {
+            const angle = startAngle + (endAngle - startAngle) * (i / arcSteps);
+            const pts = sectorLineFunc(origin.lat, origin.lng, applyDecl(angle), sectorDist, 1);
+            arcPts.push(pts[pts.length - 1]);
+          }
+          const rightSide = sectorLineFunc(origin.lat, origin.lng, applyDecl(endAngle), sectorDist, sideSteps);
+          const sectorPts: L.LatLngExpression[] = [
+            ...leftSide,
+            ...arcPts.slice(1, -1),
+            ...[...rightSide].reverse(),
+          ];
 
-      // 扇形の線種は方位線と同じにする（大圏/等角を統一）
-      const sectorLineFunc = settings.lineType === 'rhumb' ? rhumbLine : greatCircleLine;
+          const sector = L.polygon(
+            sectorPts,
+            { color: 'rgba(0,0,0,0.15)', fillColor: color, fillOpacity: 0.10, weight: 0.6, bubblingMouseEvents: true }
+          );
 
-      // 左辺：origin → startAngle 方向へ進む
-      const leftSide  = sectorLineFunc(origin.lat, origin.lng, applyDecl(startAngle), sectorDist, sideSteps);
-      // 外周弧：startAngle〜endAngle の端点を並べる
-      const arcPts: L.LatLngExpression[] = [];
-      for (let i = 0; i <= arcSteps; i++) {
-        const angle = startAngle + (endAngle - startAngle) * (i / arcSteps);
-        const pts = sectorLineFunc(origin.lat, origin.lng, applyDecl(angle), sectorDist, 1);
-        arcPts.push(pts[pts.length - 1]);
-      }
-      // 右辺：endAngle 方向から origin へ戻る（逆順）
-      const rightSide = sectorLineFunc(origin.lat, origin.lng, applyDecl(endAngle), sectorDist, sideSteps);
-
-      const sectorPts: L.LatLngExpression[] = [
-        ...leftSide,                        // origin → 左端（startAngle 側）
-        ...arcPts.slice(1, -1),             // 外周弧（両端は leftSide/rightSide の末端と重複）
-        ...[...rightSide].reverse(),        // 右端（endAngle 側）→ origin
-      ];
-
-      // 枠線 = 境界線（色ゾーンの端がそのまま境界）
-      const sector = L.polygon(
-        sectorPts,
-        { color: 'rgba(0,0,0,0.2)', fillColor: color, fillOpacity: 0.10, weight: 0.8, bubblingMouseEvents: true }
-      );
-      sector.on('mouseover', () => setHoverInfo({ color, label: dirLabel, qualityLabel, reason: nearest.reason }));
-      sector.on('mouseout', () => setHoverInfo(null));
-      addLayer(sector);
-    });
-
-    // ③ 方位線（大圏 or 等角）
-    if (settings.showDirectionLines) {
-      const lineFunc = settings.lineType === 'rhumb' ? rhumbLine : greatCircleLine;
-      sectorAngles.forEach(bearingDeg => {
-        const adjustedBearing = applyDecl(bearingDeg);
-        const pts = lineFunc(origin.lat, origin.lng, adjustedBearing, lineDist);
-        const nearest = directions.reduce((prev, curr) => {
-          const dp = Math.abs(((bearingDeg - DIRECTION_CENTER_ANGLES[prev.direction] + 180) % 360) - 180);
-          const dc = Math.abs(((bearingDeg - DIRECTION_CENTER_ANGLES[curr.direction] + 180) % 360) - 180);
-          return dc < dp ? curr : prev;
+          sector.on('mouseover', () => {
+            // ホバー時に全 reading の情報を収集
+            const entries: HoverEntry[] = directionalReadings.map(({ modeName: mn, modeColor: mc, reading: r }) => {
+              const dirs = r.directions.filter(d => d.direction !== 'CENTER');
+              const near = dirs.reduce((p, c) => {
+                const dp = Math.abs(((bearingDeg - DIRECTION_CENTER_ANGLES[p.direction] + 180) % 360) - 180);
+                const dc = Math.abs(((bearingDeg - DIRECTION_CENTER_ANGLES[c.direction] + 180) % 360) - 180);
+                return dc < dp ? c : p;
+              });
+              return {
+                modeName: mn,
+                modeColor: mc,
+                qualityColor: settings.showColors ? QUALITY_COLORS[near.quality] : '#9ca3af',
+                qualityLabel: toQualityLabel(near.quality),
+                reason: near.reason,
+              };
+            });
+            setHoverInfo({ dirLabel, entries });
+          });
+          sector.on('mouseout', () => setHoverInfo(null));
+          addLayer(sector);
         });
-        addLayer(L.polyline(pts, {
-          color: QUALITY_COLORS[nearest.quality],
-          weight: 1.5,
-          opacity: 0.7,
-          interactive: false,
-        }));
 
-        // 方位ラベル
-        const labelPts = lineFunc(origin.lat, origin.lng, adjustedBearing, 96000, 2);
-        const labelPos = labelPts[labelPts.length - 1];
-        const labelText = settings.division === '24'
-          ? NIJUSHISAN.find(m => m.angle === bearingDeg)?.label ?? `${bearingDeg}°`
-          : `${bearingDeg}°`;
-        addLayer(L.marker(labelPos, {
-          icon: L.divIcon({
-            html: `<div style="font-size:10px;font-weight:bold;color:${QUALITY_COLORS[nearest.quality]};white-space:nowrap;text-shadow:0 0 3px #fff,0 0 3px #fff;">${labelText}</div>`,
-            className: '', iconAnchor: [10, 8],
-          }),
-          interactive: false,
-        }));
+        // ③ 方位線
+        if (settings.showDirectionLines) {
+          const lineFunc = settings.lineType === 'rhumb' ? rhumbLine : greatCircleLine;
+          sectorAngles.forEach(bearingDeg => {
+            const adjustedBearing = applyDecl(bearingDeg);
+            const pts = lineFunc(origin.lat, origin.lng, adjustedBearing, lineDist);
+            const nearest = directions.reduce((prev, curr) => {
+              const dp = Math.abs(((bearingDeg - DIRECTION_CENTER_ANGLES[prev.direction] + 180) % 360) - 180);
+              const dc = Math.abs(((bearingDeg - DIRECTION_CENTER_ANGLES[curr.direction] + 180) % 360) - 180);
+              return dc < dp ? curr : prev;
+            });
+            const lineColor = settings.showColors ? QUALITY_COLORS[nearest.quality] : '#9ca3af';
+            addLayer(L.polyline(pts, {
+              color: lineColor,
+              weight: 1.5,
+              opacity: 0.7,
+              dashArray: dashArray,
+              interactive: false,
+            }));
+
+            // ラベルは最初の reading のみ表示
+            if (readingIdx === 0) {
+              const labelPts = lineFunc(origin.lat, origin.lng, adjustedBearing, 96000, 2);
+              const labelPos = labelPts[labelPts.length - 1];
+              const labelText = settings.division === '24'
+                ? NIJUSHISAN.find(m => m.angle === bearingDeg)?.label ?? `${bearingDeg}°`
+                : `${bearingDeg}°`;
+              addLayer(L.marker(labelPos, {
+                icon: L.divIcon({
+                  html: `<div style="font-size:10px;font-weight:bold;color:${lineColor};white-space:nowrap;text-shadow:0 0 3px #fff,0 0 3px #fff;">${labelText}</div>`,
+                  className: '', iconAnchor: [10, 8],
+                }),
+                interactive: false,
+              }));
+            }
+          });
+        }
       });
     }
 
@@ -343,7 +376,7 @@ export default function MapCore({
       }));
     }
 
-  }, [origin, destination, directionalReading, settings, showMarkers, applyDecl]);
+  }, [origin, destination, directionalReadings, settings, showMarkers, applyDecl]);
 
   return (
     <div className="relative w-full h-full" style={{ minHeight: '400px' }}>
@@ -351,14 +384,19 @@ export default function MapCore({
 
       {/* 方位情報パネル（左下固定） */}
       {hoverInfo && (
-        <div className="absolute bottom-4 left-4 z-[1000] bg-white rounded-xl shadow-lg border border-slate-200 p-3 w-52 pointer-events-none">
-          <div className="flex items-center gap-2 mb-1.5">
-            <span className="text-base font-bold" style={{ color: hoverInfo.color }}>{hoverInfo.label}</span>
-            <span className="text-xs px-2 py-0.5 rounded-full text-white font-medium" style={{ background: hoverInfo.color }}>
-              {hoverInfo.qualityLabel}
-            </span>
-          </div>
-          <p className="text-xs text-slate-500 leading-relaxed">{hoverInfo.reason}</p>
+        <div className="absolute bottom-4 left-4 z-[1000] bg-white rounded-xl shadow-lg border border-slate-200 p-3 w-56 pointer-events-none">
+          <div className="font-bold text-sm text-slate-700 mb-2">{hoverInfo.dirLabel}</div>
+          {hoverInfo.entries.map((entry, i) => (
+            <div key={i} className="flex items-start gap-2 mb-1.5 last:mb-0">
+              <div className="w-2 h-2 rounded-full mt-0.5 flex-shrink-0" style={{ background: entry.modeColor }} />
+              <div className="min-w-0">
+                <span className="text-xs font-bold" style={{ color: entry.qualityColor }}>
+                  {entry.modeName}: {entry.qualityLabel}
+                </span>
+                <p className="text-[10px] text-slate-400 leading-snug">{entry.reason}</p>
+              </div>
+            </div>
+          ))}
         </div>
       )}
     </div>

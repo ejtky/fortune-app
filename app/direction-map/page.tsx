@@ -3,11 +3,11 @@
 import { useState, useEffect, useCallback } from 'react';
 import dynamic from 'next/dynamic';
 import LeftSidebar from '@/app/components/map/LeftSidebar';
-import RightSidebar from '@/app/components/map/RightSidebar';
-import type { MapSettings } from '@/app/components/map/MapCore';
-import { calculateMainStar } from '@/lib/fortune/nine-star-calculator';
+import RightSidebar, { type StarMode } from '@/app/components/map/RightSidebar';
+import type { MapSettings, DirectionalReadingEntry } from '@/app/components/map/MapCore';
+import { calculateHonmeiStar, calculateMonthStar } from '@/lib/fortune/nine-star-ki/calculator';
+import { calculateDayLoshu } from '@/lib/fortune/directional/loshu';
 import { generateDirectionalReading } from '@/lib/fortune/directional/calculator';
-import type { DirectionalReading } from '@/lib/fortune/directional/calculator';
 
 const MapCore = dynamic(() => import('@/app/components/map/MapCore'), {
   ssr: false,
@@ -23,6 +23,7 @@ const DEFAULT_SETTINGS: MapSettings = {
   showCompass: false,
   showTrackingLine: false,
   showControls: true,
+  showColors: true,
   lineType: 'great',
   division: '45',
   compassDivision: '45',
@@ -47,7 +48,11 @@ export default function DirectionMapPage() {
   const [boardType, setBoardType] = useState<'year' | 'month' | 'day'>('month');
   const [settings, setSettings] = useState<MapSettings>(DEFAULT_SETTINGS);
   const [showMarkers, setShowMarkers] = useState(true);
-  const [directionalReading, setDirectionalReading] = useState<DirectionalReading | null>(null);
+  const [directionalReadings, setDirectionalReadings] = useState<DirectionalReadingEntry[]>([]);
+  const [selectedModes, setSelectedModes] = useState<StarMode[]>(['honmei']);
+  const [honmeiStarNum, setHonmeiStarNum] = useState<number | null>(null);
+  const [tsukimeiStarNum, setTsukimeiStarNum] = useState<number | null>(null);
+  const [nichimeiStarNum, setNichimeiStarNum] = useState<number | null>(null);
   const [flyToOrigin, setFlyToOrigin] = useState(false);
   const [flyToDestination, setFlyToDestination] = useState(false);
   const [mobilePanel, setMobilePanel] = useState<'none' | 'left' | 'right'>('none');
@@ -69,34 +74,62 @@ export default function DirectionMapPage() {
     }
   }, []);
 
-  // 生年月日が設定されたら自動計算
+  // 命星モードごとの表示名・色
+  const MODE_INFO: Record<StarMode, { modeName: string; modeColor: string }> = {
+    honmei:   { modeName: '本命', modeColor: '#6366f1' },
+    tsukimei: { modeName: '月命', modeColor: '#7c3aed' },
+    nichimei: { modeName: '日命', modeColor: '#0d9488' },
+  };
+
+  // 生年月日・selectedModes・boardType が変わったら自動再計算
   useEffect(() => {
     if (birthDate && origin) {
-      calculate(birthDate, targetDateTime);
+      calculate(birthDate, targetDateTime, selectedModes, boardType);
     }
-  }, [birthDate, origin]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [birthDate, origin, selectedModes, boardType]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const calculate = useCallback((bd: string, dt: string) => {
+  const calculate = useCallback((bd: string, dt: string, modes: StarMode[] = ['honmei'], targetBoard: 'year' | 'month' | 'day' = 'month') => {
     if (!bd) return;
     try {
       const birth = new Date(bd);
-      const honmei = calculateMainStar(birth);
+      const honmei = calculateHonmeiStar(birth);
+      const tsukimei = calculateMonthStar(birth, honmei);
+      const nichimei = calculateDayLoshu(birth).CENTER;
+      setHonmeiStarNum(honmei);
+      setTsukimeiStarNum(tsukimei);
+      setNichimeiStarNum(nichimei);
       const date = new Date(dt);
-      const reading = generateDirectionalReading(date, honmei);
-      setDirectionalReading(reading);
-      // localStorage に保存
+      const entries: DirectionalReadingEntry[] = modes.map(mode => {
+        let primaryStar: number;
+        let secondaryStar: number;
+        if (mode === 'nichimei') {
+          primaryStar = nichimei;
+          secondaryStar = honmei;
+        } else if (mode === 'tsukimei') {
+          primaryStar = tsukimei;
+          secondaryStar = honmei;
+        } else {
+          primaryStar = honmei;
+          secondaryStar = tsukimei;
+        }
+        return {
+          ...MODE_INFO[mode],
+          reading: generateDirectionalReading(date, primaryStar, secondaryStar, targetBoard),
+        };
+      });
+      setDirectionalReadings(entries);
       localStorage.setItem('kyusei_birthDate', bd);
     } catch (e) {
       console.error(e);
     }
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const handleCalculate = () => calculate(birthDate, targetDateTime);
+  const handleCalculate = () => calculate(birthDate, targetDateTime, selectedModes, boardType);
 
   const handleSetCurrentTime = () => {
     const now = nowDateTimeLocal();
     setTargetDateTime(now);
-    calculate(birthDate, now);
+    calculate(birthDate, now, selectedModes, boardType);
   };
 
   const handleCurrentLocation = () => {
@@ -117,7 +150,8 @@ export default function DirectionMapPage() {
     setBirthDate('');
     setTargetDateTime(nowDateTimeLocal());
     setSettings(DEFAULT_SETTINGS);
-    setDirectionalReading(null);
+    setDirectionalReadings([]);
+    setSelectedModes(['honmei']);
     setShowMarkers(true);
     localStorage.removeItem('kyusei_birthDate');
   };
@@ -128,7 +162,12 @@ export default function DirectionMapPage() {
 
   const handleBirthDateChange = (v: string) => {
     setBirthDate(v);
-    calculate(v, targetDateTime);
+    calculate(v, targetDateTime, selectedModes, boardType);
+  };
+
+  const handleSelectedModesChange = (modes: StarMode[]) => {
+    setSelectedModes(modes);
+    calculate(birthDate, targetDateTime, modes, boardType);
   };
 
   const handleTargetDateTimeChange = (v: string) => {
@@ -156,9 +195,16 @@ export default function DirectionMapPage() {
       targetDateTime,
       onTargetDateTimeChange: handleTargetDateTimeChange,
       boardType,
-      onBoardTypeChange: setBoardType,
+      onBoardTypeChange: (type: 'year' | 'month' | 'day') => {
+        setBoardType(type);
+      },
       onCalculate: handleCalculate,
       onSetCurrentTime: handleSetCurrentTime,
+      selectedModes,
+      onSelectedModesChange: handleSelectedModesChange,
+      honmeiStarName: honmeiStarNum ? getStarName(honmeiStarNum) : undefined,
+      tsukimeiStarName: tsukimeiStarNum ? getStarName(tsukimeiStarNum) : undefined,
+      nichimeiStarName: nichimeiStarNum ? getStarName(nichimeiStarNum) : undefined,
     },
   };
 
@@ -169,9 +215,19 @@ export default function DirectionMapPage() {
         <h1 className="font-bold font-serif text-slate-800 text-base sm:text-lg whitespace-nowrap">
           🧭 吉方位マップ
         </h1>
-        {directionalReading && (
+        {directionalReadings.length > 0 && (
           <div className="hidden sm:flex items-center gap-2 text-xs text-slate-500 min-w-0">
-            <span className="truncate">本命星: <strong className="text-indigo-600">{getStarName(directionalReading.honmeiStar)}</strong></span>
+            <span className={`truncate font-bold ${selectedModes.includes('honmei') ? 'text-indigo-600' : 'text-slate-400'}`}>
+              本命: {honmeiStarNum ? getStarName(honmeiStarNum) : '-'}
+            </span>
+            <span>|</span>
+            <span className={`truncate font-bold ${selectedModes.includes('tsukimei') ? 'text-violet-600' : 'text-slate-400'}`}>
+              月命: {tsukimeiStarNum ? getStarName(tsukimeiStarNum) : '-'}
+            </span>
+            <span>|</span>
+            <span className={`truncate font-bold ${selectedModes.includes('nichimei') ? 'text-teal-600' : 'text-slate-400'}`}>
+              日命: {nichimeiStarNum ? getStarName(nichimeiStarNum) : '-'}
+            </span>
             <span>|</span>
             <span className="truncate">{new Date(targetDateTime).toLocaleDateString('ja-JP')} {boardType === 'year' ? '年盤' : boardType === 'month' ? '月盤' : '日盤'}</span>
           </div>
@@ -216,7 +272,7 @@ export default function DirectionMapPage() {
             <MapCore
               origin={origin}
               destination={destination}
-              directionalReading={directionalReading}
+              directionalReadings={directionalReadings}
               settings={settings}
               showMarkers={showMarkers}
               onMapClick={(lat, lng) => { setDestination({ lat, lng }); setMobilePanel('none'); }}

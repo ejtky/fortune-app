@@ -22,12 +22,13 @@ export interface LoshuLayout {
 }
 
 /**
- * 年・月・日の洛書盤
+ * 年・月・日・時の洛書盤
  */
 export interface LoshuBoards {
   year: LoshuLayout;
   month: LoshuLayout;
   day: LoshuLayout;
+  time: LoshuLayout;
 }
 
 /**
@@ -161,10 +162,35 @@ export function calculateDayLoshu(date: Date): LoshuLayout {
 }
 
 /**
- * 指定日の年・月・日の洛書盤を全て計算
+ * 時の洛書盤を計算
+ *
+ * @param date 日付（時間を含む）
+ * @returns 時の洛書配置
+ */
+export function calculateTimeLoshu(date: Date): LoshuLayout {
+  // 簡易計算: 
+  // 時刻(0-23)から十二支のインデックス(0-11)を求める。
+  // 子(23-1時は 0), 丑(1-3時は 1)...という具合
+  const hour = date.getHours();
+  // 十二支インデックス
+  const zhiIndex = Math.floor(((hour + 1) % 24) / 2);
+  
+  // 日の中宮星を取得（これを元に時間の中宮を算出）
+  const dayStar = calculateDayLoshu(date).CENTER;
+  
+  // 仮の九星循環計算 (陽遁・陰遁の厳密な判定の代わりに簡易化)
+  let timeStar = dayStar + zhiIndex;
+  while (timeStar > 9) timeStar -= 9;
+  while (timeStar < 1) timeStar += 9;
+
+  return calculateLoshuLayout(timeStar);
+}
+
+/**
+ * 指定日の年・月・日・時の洛書盤を全て計算
  *
  * @param date 日付
- * @returns 年・月・日の洛書盤
+ * @returns 年・月・日・時の洛書盤
  */
 export function calculateAllLoshuBoards(date: Date): LoshuBoards {
   const year = date.getFullYear();
@@ -173,7 +199,8 @@ export function calculateAllLoshuBoards(date: Date): LoshuBoards {
   return {
     year: calculateYearLoshu(year),
     month: calculateMonthLoshu(year, month),
-    day: calculateDayLoshu(date)
+    day: calculateDayLoshu(date),
+    time: calculateTimeLoshu(date)
   };
 }
 

@@ -62,7 +62,7 @@ export function analyzeDirection(
   loshuBoards: LoshuBoards,
   honmeiStar: number,
   satsuList: SatsuInfo[],
-  boardType: 'year' | 'month' | 'day'
+  boardType: 'year' | 'month' | 'day' | 'time'
 ): DirectionAnalysis {
   // 各盤でのこの方位の星を取得
   const targetStar = getStarAtDirection(loshuBoards[boardType], direction);
@@ -277,7 +277,7 @@ export function generateDirectionalReading(
   date: Date,
   honmeiStar: number,
   tsukimeiStar?: number,
-  boardType: 'year' | 'month' | 'day' = 'month'
+  boardType: 'year' | 'month' | 'day' | 'time' = 'month'
 ): DirectionalReading {
   // 洛書盤を計算
   const loshuBoards = calculateAllLoshuBoards(date);
@@ -288,8 +288,10 @@ export function generateDirectionalReading(
     targetLoshuLayout = loshuBoards.year;
   } else if (boardType === 'month') {
     targetLoshuLayout = loshuBoards.month;
-  } else {
+  } else if (boardType === 'day') {
     targetLoshuLayout = loshuBoards.day;
+  } else {
+    targetLoshuLayout = loshuBoards.time;
   }
 
   const satsuList = calculateAllSatsu(targetLoshuLayout, honmeiStar, tsukimeiStar);

@@ -12,8 +12,8 @@ interface RightSidebarProps {
   onBirthDateChange: (v: string) => void;
   targetDateTime: string;
   onTargetDateTimeChange: (v: string) => void;
-  boardType: 'year' | 'month' | 'day';
-  onBoardTypeChange: (v: 'year' | 'month' | 'day') => void;
+  boardType: 'year' | 'month' | 'day' | 'time';
+  onBoardTypeChange: (v: 'year' | 'month' | 'day' | 'time') => void;
   onCalculate: () => void;
   onSetCurrentTime: () => void;
   selectedModes: StarMode[];
@@ -23,10 +23,10 @@ interface RightSidebarProps {
   nichimeiStarName?: string;
 }
 
-const BOARD_LABELS: Record<'year' | 'month' | 'day', string> = {
-  year: '年盤', month: '月盤', day: '日盤',
+const BOARD_LABELS: Record<'year' | 'month' | 'day' | 'time', string> = {
+  year: '年盤', month: '月盤', day: '日盤', time: '時盤',
 };
-const BOARD_ORDER: ('year' | 'month' | 'day')[] = ['year', 'month', 'day'];
+const BOARD_ORDER: ('year' | 'month' | 'day' | 'time')[] = ['year', 'month', 'day', 'time'];
 
 export default function RightSidebar({
   settings,
@@ -58,8 +58,8 @@ export default function RightSidebar({
     );
   };
   const currentIdx = BOARD_ORDER.indexOf(boardType);
-  const prevBoard = () => onBoardTypeChange(BOARD_ORDER[(currentIdx + 2) % 3]);
-  const nextBoard = () => onBoardTypeChange(BOARD_ORDER[(currentIdx + 1) % 3]);
+  const prevBoard = () => onBoardTypeChange(BOARD_ORDER[(currentIdx + 3) % 4]);
+  const nextBoard = () => onBoardTypeChange(BOARD_ORDER[(currentIdx + 1) % 4]);
 
   const toggle = (key: keyof MapSettings, val?: boolean) =>
     onSettingsChange({ [key]: val ?? !settings[key] });

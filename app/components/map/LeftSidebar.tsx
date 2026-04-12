@@ -22,8 +22,9 @@ interface LeftSidebarProps {
   onToggleMarkers: (v: boolean) => void;
   hasOrigin: boolean;
   hasDestination: boolean;
+  onBoardTypeChange?: (v: 'year' | 'month' | 'day' | 'time') => void;
   boardData?: {
-    boardType: 'year' | 'month' | 'day';
+    boardType: 'year' | 'month' | 'day' | 'time';
     loshuBoards: LoshuBoards;
     directions: DirectionAnalysis[];
   } | null;
@@ -39,8 +40,8 @@ const COMPASS_LAYOUT = [
   'SW', 'S', 'SE'
 ] as const;
 
-const BOARD_LABELS: Record<'year' | 'month' | 'day', string> = {
-  year: '年盤', month: '月盤', day: '日盤',
+const BOARD_LABELS: Record<'year' | 'month' | 'day' | 'time', string> = {
+  year: '年盤', month: '月盤', day: '日盤', time: '時盤',
 };
 
 export default function LeftSidebar({
@@ -54,6 +55,7 @@ export default function LeftSidebar({
   onToggleMarkers,
   hasOrigin,
   hasDestination,
+  onBoardTypeChange,
   boardData,
 }: LeftSidebarProps) {
   const [query, setQuery] = useState('');
@@ -198,9 +200,21 @@ export default function LeftSidebar({
       {/* 方位盤（九星配置図） */}
       {boardData && (
         <div className="p-3 border-b border-slate-100 bg-slate-50">
-          <div className="text-xs font-bold text-slate-500 mb-3 flex items-center justify-between">
-            <span className="flex items-center gap-1">🧭 方位盤 ({BOARD_LABELS[boardData.boardType]})</span>
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs font-bold text-slate-500 flex items-center gap-1">🧭 方位盤</span>
             <span className="text-[10px] text-slate-400 font-normal border border-slate-200 px-1 rounded-sm bg-white">北・上</span>
+          </div>
+
+          <div className="flex gap-1 mb-2 bg-slate-200/50 p-1 rounded-lg">
+            {(['year', 'month', 'day', 'time'] as const).map(bt => (
+              <button
+                key={bt}
+                onClick={() => onBoardTypeChange && onBoardTypeChange(bt)}
+                className={`flex-1 py-1 text-[10px] font-bold rounded ${boardData.boardType === bt ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:bg-white/50'}`}
+              >
+                {BOARD_LABELS[bt].replace('盤','')}
+              </button>
+            ))}
           </div>
           
           <div className="relative w-full aspect-square bg-slate-200 shadow-inner p-0.5" style={{ clipPath: 'polygon(30% 0%, 70% 0%, 100% 30%, 100% 70%, 70% 100%, 30% 100%, 0% 70%, 0% 30%)' }}>

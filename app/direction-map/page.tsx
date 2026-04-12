@@ -40,12 +40,16 @@ function nowDateTimeLocal() {
   return now.toISOString().slice(0, 16);
 }
 
+const BOARD_LABELS: Record<'year' | 'month' | 'day' | 'time', string> = {
+  year: '年盤', month: '月盤', day: '日盤', time: '時盤',
+};
+
 export default function DirectionMapPage() {
   const [origin, setOrigin] = useState<{ lat: number; lng: number } | null>(null);
   const [destination, setDestination] = useState<{ lat: number; lng: number } | null>(null);
   const [birthDate, setBirthDate] = useState('');
   const [targetDateTime, setTargetDateTime] = useState(nowDateTimeLocal());
-  const [boardType, setBoardType] = useState<'year' | 'month' | 'day'>('month');
+  const [boardType, setBoardType] = useState<'year' | 'month' | 'day' | 'time'>('month');
   const [settings, setSettings] = useState<MapSettings>(DEFAULT_SETTINGS);
   const [showMarkers, setShowMarkers] = useState(true);
   const [directionalReadings, setDirectionalReadings] = useState<DirectionalReadingEntry[]>([]);
@@ -88,7 +92,7 @@ export default function DirectionMapPage() {
     }
   }, [birthDate, origin, selectedModes, boardType]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const calculate = useCallback((bd: string, dt: string, modes: StarMode[] = ['honmei'], targetBoard: 'year' | 'month' | 'day' = 'month') => {
+  const calculate = useCallback((bd: string, dt: string, modes: StarMode[] = ['honmei'], targetBoard: 'year' | 'month' | 'day' | 'time' = 'month') => {
     if (!bd) return;
     try {
       const birth = new Date(bd);
@@ -186,6 +190,9 @@ export default function DirectionMapPage() {
       onToggleMarkers: setShowMarkers,
       hasOrigin: !!origin,
       hasDestination: !!destination,
+      onBoardTypeChange: (type: 'year' | 'month' | 'day' | 'time') => {
+        setBoardType(type);
+      },
       boardData: directionalReadings.length > 0 ? {
         boardType,
         loshuBoards: directionalReadings[0].reading.loshuBoards,
@@ -200,7 +207,7 @@ export default function DirectionMapPage() {
       targetDateTime,
       onTargetDateTimeChange: handleTargetDateTimeChange,
       boardType,
-      onBoardTypeChange: (type: 'year' | 'month' | 'day') => {
+      onBoardTypeChange: (type: 'year' | 'month' | 'day' | 'time') => {
         setBoardType(type);
       },
       onCalculate: handleCalculate,
@@ -234,7 +241,7 @@ export default function DirectionMapPage() {
               日命: {nichimeiStarNum ? getStarName(nichimeiStarNum) : '-'}
             </span>
             <span>|</span>
-            <span className="truncate">{new Date(targetDateTime).toLocaleDateString('ja-JP')} {boardType === 'year' ? '年盤' : boardType === 'month' ? '月盤' : '日盤'}</span>
+            <span className="truncate">{new Date(targetDateTime).toLocaleDateString('ja-JP')} {BOARD_LABELS[boardType]}</span>
           </div>
         )}
         {!birthDate && (

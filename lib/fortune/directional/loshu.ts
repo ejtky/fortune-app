@@ -69,14 +69,15 @@ export function calculateLoshuLayout(centerStar: number): LoshuLayout {
 /**
  * 年の洛書盤を計算
  *
- * 年の中宮星は、その年の本命星と同じ
- *
- * @param year 年（西暦）
+ * @param date 日付
  * @returns 年の洛書配置
  */
-export function calculateYearLoshu(year: number): LoshuLayout {
+export function calculateYearLoshu(date: Date): LoshuLayout {
   // 立春調整（2月4日より前は前年扱い）
-  // ここでは簡略化のため年単位で計算
+  let year = date.getFullYear();
+  if (date.getMonth() === 0 || (date.getMonth() === 1 && date.getDate() < 4)) {
+    year -= 1;
+  }
 
   // 基準年（1917年）からの年数を計算
   const BASE_YEAR = 1917;
@@ -93,30 +94,51 @@ export function calculateYearLoshu(year: number): LoshuLayout {
 /**
  * 月の洛書盤を計算
  *
- * 月の中宮星は年の中宮星と月によって決まる
+ * 月の中宮星は年の中宮星と月ごとに決まる（正月＝寅月始まり）
  *
- * @param year 年（西暦）
- * @param month 月（1-12）
+ * @param date 日付
  * @returns 月の洛書配置
  */
-export function calculateMonthLoshu(year: number, month: number): LoshuLayout {
-  // 年の中宮星を取得
-  const yearCenterStar = calculateYearLoshu(year).CENTER;
+export function calculateMonthLoshu(date: Date): LoshuLayout {
+  let y = date.getFullYear();
+  let m = date.getMonth() + 1; // 1-12
+  const d = date.getDate();
 
-  // 月の中宮星テーブル（年の中宮星ごとに異なる）
-  const monthCenterStarTables: Record<number, number[]> = {
-    1: [8, 7, 6, 5, 4, 3, 2, 1, 9, 8, 7, 6],  // 一白水星の年
-    2: [5, 4, 3, 2, 1, 9, 8, 7, 6, 5, 4, 3],  // 二黒土星の年
-    3: [2, 1, 9, 8, 7, 6, 5, 4, 3, 2, 1, 9],  // 三碧木星の年
-    4: [8, 7, 6, 5, 4, 3, 2, 1, 9, 8, 7, 6],  // 四緑木星の年
-    5: [5, 4, 3, 2, 1, 9, 8, 7, 6, 5, 4, 3],  // 五黄土星の年
-    6: [2, 1, 9, 8, 7, 6, 5, 4, 3, 2, 1, 9],  // 六白金星の年
-    7: [8, 7, 6, 5, 4, 3, 2, 1, 9, 8, 7, 6],  // 七赤金星の年
-    8: [5, 4, 3, 2, 1, 9, 8, 7, 6, 5, 4, 3],  // 八白土星の年
-    9: [2, 1, 9, 8, 7, 6, 5, 4, 3, 2, 1, 9]   // 九紫火星の年
-  };
+  // 節替わりを簡易的に毎月4日とする
+  if (d < 4) {
+    m -= 1;
+    if (m === 0) {
+      m = 12;
+      y -= 1;
+    }
+  }
 
-  const monthCenterStar = monthCenterStarTables[yearCenterStar][month - 1];
+  // 気学上の年を求める（立春 2/4 基準）
+  let kigakuYear = date.getFullYear();
+  if (date.getMonth() === 0 || (date.getMonth() === 1 && date.getDate() < 4)) {
+    kigakuYear -= 1;
+  }
+  
+  // 年の中宮星を取得（グループ分けに使う）
+  const BASE_YEAR = 1917;
+  const yearsSince = kigakuYear - BASE_YEAR;
+  let yearCenterStar = 11 - (yearsSince % 9);
+  if (yearCenterStar > 9) yearCenterStar -= 9;
+  if (yearCenterStar <= 0) yearCenterStar += 9;
+
+  // 月の中宮星の基準（正月＝気学上の1月（カレンダーの2月））
+  let startStar = 8;
+  if ([3, 6, 9].includes(yearCenterStar)) startStar = 5;
+  if ([2, 5, 8].includes(yearCenterStar)) startStar = 2;
+
+  // カレンダーの月m から気学の月インデックス(1-12)を算出 (カレンダー2月 => 気学1月)
+  let kigakuMonth = m - 1;
+  if (kigakuMonth <= 0) kigakuMonth += 12;
+
+  // 1月(正月)が startStar で、毎月逆行（-1）する
+  let monthCenterStar = startStar - (kigakuMonth - 1);
+  while (monthCenterStar <= 0) monthCenterStar += 9;
+  while (monthCenterStar > 9) monthCenterStar -= 9;
 
   return calculateLoshuLayout(monthCenterStar);
 }
@@ -145,7 +167,8 @@ export function calculateDayLoshu(date: Date): LoshuLayout {
   // 日の中宮星（9日周期で循環）
   // 冬至（12月22日頃）の日の中宮星を基準に計算
   // 冬至から9日ごとに星が変わる
-  const yearCenterStar = calculateYearLoshu(year).CENTER;
+  const fakeDate = new Date(year, 6, 1);
+  const yearCenterStar = calculateYearLoshu(fakeDate).CENTER;
 
   // 冬至からの経過日数を考慮（簡略化）
   const winterSolstice = new Date(year - 1, 11, 22); // 前年の冬至
@@ -191,12 +214,9 @@ export function calculateTimeLoshu(date: Date): LoshuLayout {
  * @returns 年・月・日・時の洛書盤
  */
 export function calculateAllLoshuBoards(date: Date): LoshuBoards {
-  const year = date.getFullYear();
-  const month = date.getMonth() + 1;
-
   return {
-    year: calculateYearLoshu(year),
-    month: calculateMonthLoshu(year, month),
+    year: calculateYearLoshu(date),
+    month: calculateMonthLoshu(date),
     day: calculateDayLoshu(date),
     time: calculateTimeLoshu(date)
   };

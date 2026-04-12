@@ -247,8 +247,19 @@ export default function MapCore({
       }).bindPopup(`<strong>⛳ 目的地</strong><br/>方位: ${label}（${Math.round(bearing)}°）`));
     }
 
+    const sectorAngles = DIVISION_ANGLES[settings.division];
+    const sectorWidth = 360 / sectorAngles.length;
+    const LINE_DASHES: (string | undefined)[] = [undefined, '8,4', '2,4'];
+
+    const toQualityLabel = (q: string) =>
+      q === 'excellent' ? '大吉' : q === 'good' ? '吉' : q === 'neutral' ? '平' : q === 'caution' ? '小凶' : '凶';
+
     // ① 各 reading のカラーゾーン + 方位線を順に描画
     if (directionalReadings.length > 0) {
+      // 分割設定からセクター角度リストと幅を算出
+      const sectorAngles = DIVISION_ANGLES[settings.division];
+      const sectorWidth  = 360 / sectorAngles.length;
+
       directionalReadings.forEach(({ modeName, modeColor, reading }, readingIdx) => {
         const directions = reading.directions.filter(d => d.direction !== 'CENTER');
         const dashArray = LINE_DASHES[readingIdx % LINE_DASHES.length];

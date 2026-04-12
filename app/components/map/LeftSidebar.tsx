@@ -2,6 +2,9 @@
 
 import { useState, useRef } from 'react';
 
+import type { DirectionAnalysis } from '@/lib/fortune/directional/calculator';
+import type { LoshuBoards } from '@/lib/fortune/directional/loshu';
+
 interface SearchResult {
   display_name: string;
   lat: string;
@@ -19,7 +22,26 @@ interface LeftSidebarProps {
   onToggleMarkers: (v: boolean) => void;
   hasOrigin: boolean;
   hasDestination: boolean;
+  boardData?: {
+    boardType: 'year' | 'month' | 'day';
+    loshuBoards: LoshuBoards;
+    directions: DirectionAnalysis[];
+  } | null;
 }
+
+const KANJI_STARS: Record<number, string> = {
+  1: '一', 2: '二', 3: '三', 4: '四', 5: '五', 6: '六', 7: '七', 8: '八', 9: '九'
+};
+
+const COMPASS_LAYOUT = [
+  'NW', 'N', 'NE',
+  'W', 'CENTER', 'E',
+  'SW', 'S', 'SE'
+] as const;
+
+const BOARD_LABELS: Record<'year' | 'month' | 'day', string> = {
+  year: '年盤', month: '月盤', day: '日盤',
+};
 
 export default function LeftSidebar({
   onCurrentLocation,
@@ -32,6 +54,7 @@ export default function LeftSidebar({
   onToggleMarkers,
   hasOrigin,
   hasDestination,
+  boardData,
 }: LeftSidebarProps) {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<SearchResult[]>([]);
@@ -171,6 +194,69 @@ export default function LeftSidebar({
           <span className="text-slate-600">マーカー表示</span>
         </label>
       </div>
+
+      {/* 方位盤（九星配置図） */}
+      {boardData && (
+        <div className="p-3 border-b border-slate-100 bg-slate-50">
+          <div className="text-xs font-bold text-slate-500 mb-3 flex items-center justify-between">
+            <span className="flex items-center gap-1">🧭 方位盤 ({BOARD_LABELS[boardData.boardType]})</span>
+            <span className="text-[10px] text-slate-400 font-normal border border-slate-200 px-1 rounded-sm bg-white">北・上</span>
+          </div>
+          
+          <div className="relative w-full aspect-square bg-slate-200 shadow-inner p-0.5" style={{ clipPath: 'polygon(30% 0%, 70% 0%, 100% 30%, 100% 70%, 70% 100%, 30% 100%, 0% 70%, 0% 30%)' }}>
+            <div className="grid grid-cols-3 grid-rows-3 w-full h-full gap-0.5 relative">
+              {COMPASS_LAYOUT.map(dir => {
+                const layout = boardData.loshuBoards[boardData.boardType];
+                const star = layout[dir as keyof typeof layout];
+                const directionsMap = new Map(boardData.directions.map(d => [d.direction, d]));
+                const info = dir !== 'CENTER' ? directionsMap.get(dir) : null;
+                
+                let bgColor = 'bg-white';
+                let borderColor = 'border-slate-100';
+                let isLucky = false;
+                let satsuName = null;
+
+                if (info) {
+                  if (info.satsu) {
+                    bgColor = 'bg-slate-300/40';
+                    satsuName = info.satsu.name.replace('殺','').replace('的','').replace('破','');
+                    borderColor = 'border-slate-300';
+                  } else if (info.isLucky) {
+                    bgColor = 'bg-rose-100';
+                    borderColor = 'border-rose-200';
+                    isLucky = true;
+                  }
+                }
+
+                // 中心矢印のためのスタイル分け
+                const isCenter = dir === 'CENTER';
+
+                return (
+                  <div key={dir} className={`relative flex flex-col items-center justify-center ${bgColor} border ${borderColor} ${isCenter ? 'z-10' : ''}`}>
+                    {dir === 'N' && <div className="absolute top-1 text-[9px] text-slate-400 font-bold">北</div>}
+                    {dir === 'S' && <div className="absolute bottom-1 text-[9px] text-slate-400 font-bold">南</div>}
+                    {dir === 'E' && <div className="absolute right-1 text-[9px] text-slate-400 font-bold" style={{ writingMode: 'vertical-rl' }}>東</div>}
+                    {dir === 'W' && <div className="absolute left-1 text-[9px] text-slate-400 font-bold" style={{ writingMode: 'vertical-rl' }}>西</div>}
+                    
+                    {isCenter && <div className="absolute top-1 text-red-500 text-xs mt-0.5">▲</div>}
+
+                    <span className={`text-xl font-bold font-serif ${isLucky ? 'text-rose-700' : 'text-slate-700'}`}>
+                      {KANJI_STARS[star as number]}
+                    </span>
+                    
+                    {!isCenter && (
+                      <div className="absolute bottom-0.5 left-0 w-full text-center tracking-tighter">
+                        {isLucky && <span className="text-[10px] text-rose-600 font-bold bg-white/50 px-0.5 rounded leading-none inline-block">吉方</span>}
+                        {satsuName && <span className="text-[9px] text-slate-500 font-bold leading-none inline-block">{satsuName}</span>}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 地図クリックの説明 */}
       <div className="p-3 border-b border-slate-100">

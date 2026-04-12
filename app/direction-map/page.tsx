@@ -186,6 +186,11 @@ export default function DirectionMapPage() {
       onToggleMarkers: setShowMarkers,
       hasOrigin: !!origin,
       hasDestination: !!destination,
+      boardData: directionalReadings.length > 0 ? {
+        boardType,
+        loshuBoards: directionalReadings[0].reading.loshuBoards,
+        directions: directionalReadings[0].reading.directions,
+      } : null,
     },
     right: {
       settings,

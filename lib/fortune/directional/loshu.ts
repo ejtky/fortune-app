@@ -32,6 +32,38 @@ export interface LoshuBoards {
 }
 
 /**
+ * 2000年1月1日(UTC)からの経過日数を計算
+ */
+function getDaysSince2000(date: Date): number {
+  const d2000 = new Date(Date.UTC(2000, 0, 1));
+  const utcDate = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+  return Math.floor((utcDate.getTime() - d2000.getTime()) / (1000 * 60 * 60 * 24));
+}
+
+/**
+ * 任意の日の干支番号を計算 (0=甲子 ～ 59=癸亥)
+ * 2000年1月1日は 戊午 (54)
+ */
+function getKanshiIndex(daysSince2000: number): number {
+  let k = (54 + (daysSince2000 % 60)) % 60;
+  if (k < 0) k += 60;
+  return k;
+}
+
+/**
+ * 指定日に最も近い甲子（きのえね = 0）の日の経過日数を取得
+ */
+function getNearestKoshi(targetDate: Date): number {
+  const days = getDaysSince2000(targetDate);
+  const k = getKanshiIndex(days);
+  if (k <= 30) {
+    return days - k;
+  } else {
+    return days + (60 - k);
+  }
+}
+
+/**
  * 中宮星から洛書の配置を計算
  *
  * 洛書は中宮の星によって全体が回転する
@@ -146,61 +178,111 @@ export function calculateMonthLoshu(date: Date): LoshuLayout {
 /**
  * 日の洛書盤を計算
  *
- * 日の中宮星は立春からの日数で決まる
+ * 日盤は陰遁と陽遁を考慮して計算
+ * 夏至付近の甲子から陰遁（9,8,7...）
+ * 冬至付近の甲子から陽遁（1,2,3...）
  *
  * @param date 日付
  * @returns 日の洛書配置
  */
 export function calculateDayLoshu(date: Date): LoshuLayout {
-  let year = date.getFullYear();
-  const startOfYear = new Date(year, 1, 4); // 立春（2月4日）
-
-  // 立春より前なら前年の立春を基準にする
-  let rissyun = startOfYear;
-  if (date < startOfYear) {
-    year -= 1;
-    rissyun = new Date(year, 1, 4);
+  const y = date.getFullYear();
+  const days = getDaysSince2000(date);
+  
+  // 基準となる甲子の日
+  const prevTojiKoshi = getNearestKoshi(new Date(y - 1, 11, 22)); // 前年冬至
+  const geshiKoshi = getNearestKoshi(new Date(y, 5, 21));         // 今年夏至
+  const tojiKoshi = getNearestKoshi(new Date(y, 11, 22));         // 今年冬至
+  
+  let centerStar = 1;
+  let isYonton = true;
+  let diffKoshi = 0;
+  
+  if (days >= prevTojiKoshi && days < geshiKoshi) {
+    // 陽遁 (前年冬至〜今年夏至)
+    diffKoshi = days - prevTojiKoshi;
+    isYonton = true;
+  } else if (days >= geshiKoshi && days < tojiKoshi) {
+    // 陰遁 (今年夏至〜今年冬至)
+    diffKoshi = days - geshiKoshi;
+    isYonton = false;
+  } else {
+    // 陽遁 (今年冬至〜来年夏至)
+    let base = tojiKoshi;
+    if (days < prevTojiKoshi) {
+      // 稀なケース: 日付が前年冬至甲子よりも前（前々年冬至から前年夏至の陽遁/陰遁の末尾）
+      base = getNearestKoshi(new Date(y - 1, 5, 21));
+      diffKoshi = days - base;
+      isYonton = false; // 前年夏至の陰遁期間とみなす
+    } else {
+      diffKoshi = days - base;
+      isYonton = true;
+    }
   }
 
-  const daysDiff = Math.floor((date.getTime() - rissyun.getTime()) / (1000 * 60 * 60 * 24));
+  // 陽遁：甲子一白スタート (1 + diff)
+  // 陰遁：甲子九紫スタート (9 - diff)
+  if (isYonton) {
+    centerStar = (1 + (diffKoshi % 9));
+  } else {
+    centerStar = (9 - (diffKoshi % 9));
+  }
 
-  // 日の中宮星（9日周期で循環）
-  // 冬至（12月22日頃）の日の中宮星を基準に計算
-  // 冬至から9日ごとに星が変わる
-  const fakeDate = new Date(year, 6, 1);
-  const yearCenterStar = calculateYearLoshu(fakeDate).CENTER;
+  while (centerStar > 9) centerStar -= 9;
+  while (centerStar < 1) centerStar += 9;
 
-  // 冬至からの経過日数を考慮（簡略化）
-  const winterSolstice = new Date(year - 1, 11, 22); // 前年の冬至
-  const daysFromWinterSolstice = Math.floor((date.getTime() - winterSolstice.getTime()) / (1000 * 60 * 60 * 24));
-
-  // 日の中宮星を計算
-  let dayCenterStar = yearCenterStar - (daysFromWinterSolstice % 9);
-  while (dayCenterStar <= 0) dayCenterStar += 9;
-  while (dayCenterStar > 9) dayCenterStar -= 9;
-
-  return calculateLoshuLayout(dayCenterStar);
+  return calculateLoshuLayout(centerStar);
 }
 
 /**
  * 時の洛書盤を計算
  *
+ * 時盤は日盤の陽遁・陰遁と日の干支によって決まる
+ *
  * @param date 日付（時間を含む）
  * @returns 時の洛書配置
  */
 export function calculateTimeLoshu(date: Date): LoshuLayout {
-  // 簡易計算: 
-  // 時刻(0-23)から十二支のインデックス(0-11)を求める。
-  // 子(23-1時は 0), 丑(1-3時は 1)...という具合
+  // 1. 日の干支インデックスと陽遁/陰遁の判定
+  const days = getDaysSince2000(date);
+  const kanshiIndex = getKanshiIndex(days); // 日の干支(0-59)
+  
+  const y = date.getFullYear();
+  const prevTojiKoshi = getNearestKoshi(new Date(y - 1, 11, 22)); 
+  const geshiKoshi = getNearestKoshi(new Date(y, 5, 21));         
+  const tojiKoshi = getNearestKoshi(new Date(y, 11, 22));         
+  
+  let isYonton = true;
+  if (days >= prevTojiKoshi && days < geshiKoshi) {
+    isYonton = true;
+  } else if (days >= geshiKoshi && days < tojiKoshi) {
+    isYonton = false;
+  } else {
+    isYonton = (days >= tojiKoshi);
+    if (days < prevTojiKoshi) isYonton = false;
+  }
+
+  // 2. 日の干支グループから子の刻(23-1時)のベース星を特定
+  const dayGroup = kanshiIndex % 12; 
+  // 子(0)午(6)卯(3)酉(9), 辰(4)戌(10)丑(1)未(7), 寅(2)申(8)巳(5)亥(11)
+  let startStar = 1;
+  if (isYonton) {
+    if ([0, 3, 6, 9].includes(dayGroup)) startStar = 1;
+    else if ([1, 4, 7, 10].includes(dayGroup)) startStar = 4;
+    else startStar = 7;
+  } else {
+    if ([0, 3, 6, 9].includes(dayGroup)) startStar = 9;
+    else if ([1, 4, 7, 10].includes(dayGroup)) startStar = 6;
+    else startStar = 3;
+  }
+
+  // 3. 現在時刻の十二支インデックスをプラス/マイナス
   const hour = date.getHours();
-  // 十二支インデックス
+  // 子(23-1時 = 0), 丑(1-3時 = 1)...
   const zhiIndex = Math.floor(((hour + 1) % 24) / 2);
   
-  // 日の中宮星を取得（これを元に時間の中宮を算出）
-  const dayStar = calculateDayLoshu(date).CENTER;
+  let timeStar = isYonton ? (startStar + zhiIndex) : (startStar - zhiIndex);
   
-  // 仮の九星循環計算 (陽遁・陰遁の厳密な判定の代わりに簡易化)
-  let timeStar = dayStar + zhiIndex;
   while (timeStar > 9) timeStar -= 9;
   while (timeStar < 1) timeStar += 9;
 

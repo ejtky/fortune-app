@@ -8,14 +8,8 @@ export type StarMode = 'honmei' | 'tsukimei' | 'nichimei';
 interface RightSidebarProps {
   settings: MapSettings;
   onSettingsChange: (s: Partial<MapSettings>) => void;
-  birthDate: string;
-  onBirthDateChange: (v: string) => void;
-  targetDateTime: string;
-  onTargetDateTimeChange: (v: string) => void;
   boardType: 'year' | 'month' | 'day' | 'time';
   onBoardTypeChange: (v: 'year' | 'month' | 'day' | 'time') => void;
-  onCalculate: () => void;
-  onSetCurrentTime: () => void;
   selectedModes: StarMode[];
   onSelectedModesChange: (v: StarMode[]) => void;
   honmeiStarName?: string;
@@ -31,25 +25,14 @@ const BOARD_ORDER: ('year' | 'month' | 'day' | 'time')[] = ['year', 'month', 'da
 export default function RightSidebar({
   settings,
   onSettingsChange,
-  birthDate,
-  onBirthDateChange,
-  targetDateTime,
-  onTargetDateTimeChange,
   boardType,
   onBoardTypeChange,
-  onCalculate,
-  onSetCurrentTime,
   selectedModes,
   onSelectedModesChange,
   honmeiStarName,
   tsukimeiStarName,
   nichimeiStarName,
 }: RightSidebarProps) {
-  const [localBirthDate, setLocalBirthDate] = React.useState(birthDate);
-
-  React.useEffect(() => {
-    setLocalBirthDate(birthDate);
-  }, [birthDate]);
 
   const toggleMode = (mode: StarMode) => {
     const isOn = selectedModes.includes(mode);
@@ -227,63 +210,6 @@ export default function RightSidebar({
           <button onClick={prevBoard} className="px-2 py-1 text-slate-500 hover:text-indigo-600 font-bold text-base">◀</button>
           <span className="font-bold text-indigo-700 text-sm">{BOARD_LABELS[boardType]}</span>
           <button onClick={nextBoard} className="px-2 py-1 text-slate-500 hover:text-indigo-600 font-bold text-base">▶</button>
-        </div>
-
-        {/* 日時指定 */}
-        <div className="space-y-2 mb-2">
-          <div>
-            <label className="text-xs text-slate-500 block mb-0.5">診断日時</label>
-            <input
-              type="datetime-local"
-              value={targetDateTime}
-              onChange={e => onTargetDateTimeChange(e.target.value)}
-              className="w-full px-2 py-1.5 border border-slate-300 rounded text-xs focus:outline-none focus:ring-2 focus:ring-indigo-300"
-            />
-          </div>
-          <div className="flex gap-1.5">
-            <button
-              onClick={onCalculate}
-              className="flex-1 py-1.5 bg-indigo-600 text-white rounded text-xs hover:bg-indigo-700 font-medium"
-            >
-              表示
-            </button>
-            <button
-              onClick={onSetCurrentTime}
-              className="flex-1 py-1.5 bg-slate-100 text-slate-600 rounded text-xs hover:bg-slate-200"
-            >
-              現時刻へ
-            </button>
-          </div>
-        </div>
-
-        {/* 生年月日 */}
-        <div className="space-y-2 mb-2 mt-4 pt-4 border-t border-slate-100">
-          <div>
-            <label className="text-xs text-slate-500 block mb-0.5">生年月日</label>
-            <input
-              type="date"
-              value={localBirthDate}
-              onChange={e => setLocalBirthDate(e.target.value)}
-              className="w-full px-2 py-1.5 border border-slate-300 rounded text-xs focus:outline-none focus:ring-2 focus:ring-indigo-300"
-            />
-          </div>
-          <div className="flex gap-1.5">
-            <button
-              onClick={() => onBirthDateChange(localBirthDate)}
-              className="flex-1 py-1.5 bg-indigo-600 text-white rounded text-xs hover:bg-indigo-700 font-medium"
-            >
-              設定・表示
-            </button>
-            <button
-              onClick={() => {
-                setLocalBirthDate('');
-                onBirthDateChange('');
-              }}
-              className="flex-1 py-1.5 bg-slate-100 text-slate-600 rounded text-xs hover:bg-slate-200"
-            >
-              クリア
-            </button>
-          </div>
         </div>
 
         {/* 盤上に表示 */}

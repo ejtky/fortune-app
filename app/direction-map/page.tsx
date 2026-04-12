@@ -45,7 +45,7 @@ const BOARD_LABELS: Record<'year' | 'month' | 'day' | 'time', string> = {
 };
 
 export default function DirectionMapPage() {
-  const [origin, setOrigin] = useState<{ lat: number; lng: number } | null>(null);
+  const [origin, setOrigin] = useState<{ lat: number; lng: number }>({ lat: 35.6762, lng: 139.6503 });
   const [destination, setDestination] = useState<{ lat: number; lng: number } | null>(null);
   const [birthDate, setBirthDate] = useState('');
   const [targetDateTime, setTargetDateTime] = useState(nowDateTimeLocal());
@@ -71,7 +71,8 @@ export default function DirectionMapPage() {
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         pos => setOrigin({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
-        () => setOrigin({ lat: 35.6762, lng: 139.6503 })
+        () => setOrigin({ lat: 35.6762, lng: 139.6503 }),
+        { timeout: 5000 }
       );
     } else {
       setOrigin({ lat: 35.6762, lng: 139.6503 });
@@ -190,6 +191,12 @@ export default function DirectionMapPage() {
       onToggleMarkers: setShowMarkers,
       hasOrigin: !!origin,
       hasDestination: !!destination,
+      targetDateTime,
+      onTargetDateTimeChange: handleTargetDateTimeChange,
+      onCalculate: handleCalculate,
+      onSetCurrentTime: handleSetCurrentTime,
+      birthDate,
+      onBirthDateChange: handleBirthDateChange,
       onBoardTypeChange: (type: 'year' | 'month' | 'day' | 'time') => {
         setBoardType(type);
       },
@@ -202,16 +209,10 @@ export default function DirectionMapPage() {
     right: {
       settings,
       onSettingsChange: handleSettingsChange,
-      birthDate,
-      onBirthDateChange: handleBirthDateChange,
-      targetDateTime,
-      onTargetDateTimeChange: handleTargetDateTimeChange,
       boardType,
       onBoardTypeChange: (type: 'year' | 'month' | 'day' | 'time') => {
         setBoardType(type);
       },
-      onCalculate: handleCalculate,
-      onSetCurrentTime: handleSetCurrentTime,
       selectedModes,
       onSelectedModesChange: handleSelectedModesChange,
       honmeiStarName: honmeiStarNum ? getStarName(honmeiStarNum) : undefined,

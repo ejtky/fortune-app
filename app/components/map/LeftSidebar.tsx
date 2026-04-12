@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 
 import type { DirectionAnalysis } from '@/lib/fortune/directional/calculator';
 import type { LoshuBoards } from '@/lib/fortune/directional/loshu';
@@ -22,6 +22,12 @@ interface LeftSidebarProps {
   onToggleMarkers: (v: boolean) => void;
   hasOrigin: boolean;
   hasDestination: boolean;
+  targetDateTime: string;
+  onTargetDateTimeChange: (v: string) => void;
+  onCalculate: () => void;
+  onSetCurrentTime: () => void;
+  birthDate: string;
+  onBirthDateChange: (v: string) => void;
   onBoardTypeChange?: (v: 'year' | 'month' | 'day' | 'time') => void;
   boardData?: {
     boardType: 'year' | 'month' | 'day' | 'time';
@@ -55,6 +61,12 @@ export default function LeftSidebar({
   onToggleMarkers,
   hasOrigin,
   hasDestination,
+  targetDateTime,
+  onTargetDateTimeChange,
+  onCalculate,
+  onSetCurrentTime,
+  birthDate,
+  onBirthDateChange,
   onBoardTypeChange,
   boardData,
 }: LeftSidebarProps) {
@@ -63,7 +75,12 @@ export default function LeftSidebar({
   const [searching, setSearching] = useState(false);
   const [pendingResult, setPendingResult] = useState<SearchResult | null>(null);
   const [showHint, setShowHint] = useState(false);
+  const [localBirthDate, setLocalBirthDate] = useState(birthDate);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    setLocalBirthDate(birthDate);
+  }, [birthDate]);
 
   const search = async (q: string) => {
     if (!q.trim()) { setResults([]); return; }
@@ -195,6 +212,67 @@ export default function LeftSidebar({
           />
           <span className="text-slate-600">マーカー表示</span>
         </label>
+      </div>
+
+      {/* 診断日時 */}
+      <div className="p-3 border-b border-slate-100">
+        <div className="space-y-2">
+          <div>
+            <label className="text-xs text-slate-500 block mb-0.5">診断日時</label>
+            <input
+              type="datetime-local"
+              value={targetDateTime}
+              onChange={e => onTargetDateTimeChange(e.target.value)}
+              className="w-full px-2 py-1.5 border border-slate-300 rounded text-xs focus:outline-none focus:ring-2 focus:ring-indigo-300"
+            />
+          </div>
+          <div className="flex gap-1.5">
+            <button
+              onClick={onCalculate}
+              className="flex-1 py-1.5 bg-indigo-600 text-white rounded text-xs hover:bg-indigo-700 font-medium"
+            >
+              表示
+            </button>
+            <button
+              onClick={onSetCurrentTime}
+              className="flex-1 py-1.5 bg-slate-100 text-slate-600 rounded text-xs hover:bg-slate-200"
+            >
+              現時刻へ
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* 生年月日 */}
+      <div className="p-3 border-b border-slate-100">
+        <div className="space-y-2">
+          <div>
+            <label className="text-xs text-slate-500 block mb-0.5">生年月日</label>
+            <input
+              type="date"
+              value={localBirthDate}
+              onChange={e => setLocalBirthDate(e.target.value)}
+              className="w-full px-2 py-1.5 border border-slate-300 rounded text-xs focus:outline-none focus:ring-2 focus:ring-indigo-300"
+            />
+          </div>
+          <div className="flex gap-1.5">
+            <button
+              onClick={() => onBirthDateChange(localBirthDate)}
+              className="flex-1 py-1.5 bg-indigo-600 text-white rounded text-xs hover:bg-indigo-700 font-medium"
+            >
+              設定・表示
+            </button>
+            <button
+              onClick={() => {
+                setLocalBirthDate('');
+                onBirthDateChange('');
+              }}
+              className="flex-1 py-1.5 bg-slate-100 text-slate-600 rounded text-xs hover:bg-slate-200"
+            >
+              クリア
+            </button>
+          </div>
+        </div>
       </div>
 
       {/* 方位盤（九星配置図） */}

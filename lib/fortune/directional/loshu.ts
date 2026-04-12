@@ -41,12 +41,10 @@ export interface LoshuBoards {
  * @returns 洛書の配置
  */
 export function calculateLoshuLayout(centerStar: number): LoshuLayout {
-  // 中宮からの差分を計算
-  const offset = 5 - centerStar;
-
-  // 各方位の星を計算（基本配置に offset を加算）
+  // 定位置盤（五黄中宮）の星をベース(baseStar)とする
+  // 中宮が centerStar に変わった時、各宮に入る星は centerStar + (baseStar - 5) となる
   const calculate = (baseStar: number): number => {
-    let star = baseStar + offset;
+    let star = centerStar + (baseStar - 5);
 
     // 1-9 の範囲に正規化
     while (star > 9) star -= 9;

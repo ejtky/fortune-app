@@ -1,4 +1,5 @@
 'use client';
+import * as React from 'react';
 
 import type { DivisionType, LineType, MapSettings } from './MapCore';
 
@@ -44,6 +45,21 @@ export default function RightSidebar({
   tsukimeiStarName,
   nichimeiStarName,
 }: RightSidebarProps) {
+  // 生年月日の入力途中で value="" になってリセットされる問題を防ぐためのローカルステート
+  const [localBirthDate, setLocalBirthDate] = React.useState(birthDate);
+
+  // setBirthDateが外から変更された場合は追従する
+  React.useEffect(() => {
+    if (birthDate !== localBirthDate) {
+      setLocalBirthDate(birthDate);
+    }
+  }, [birthDate]);
+
+  const handleBirthDateLocalChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setLocalBirthDate(e.target.value);
+    // 有効な日付形式（YYYY-MM-DD）のときだけ親に通知するか、直接親に通知しつつローカルにも持つ
+    onBirthDateChange(e.target.value);
+  };
   const toggleMode = (mode: StarMode) => {
     const isOn = selectedModes.includes(mode);
     onSelectedModesChange(
@@ -254,8 +270,8 @@ export default function RightSidebar({
           <label className="text-xs text-slate-500 block mb-0.5">生年月日</label>
           <input
             type="date"
-            value={birthDate}
-            onChange={e => onBirthDateChange(e.target.value)}
+            value={localBirthDate}
+            onChange={handleBirthDateLocalChange}
             className="w-full px-2 py-1.5 border border-slate-300 rounded text-xs focus:outline-none focus:ring-2 focus:ring-indigo-300"
           />
         </div>

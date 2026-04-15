@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import dynamic from 'next/dynamic';
 import LeftSidebar from '@/app/components/map/LeftSidebar';
 import RightSidebar, { type StarMode } from '@/app/components/map/RightSidebar';
-import type { MapSettings, DirectionalReadingEntry } from '@/app/components/map/MapCore';
+import type { MapSettings, DirectionalReadingEntry, SearchResultMarker } from '@/app/components/map/MapCore';
 import { calculateHonmeiStar, calculateMonthStar } from '@/lib/fortune/nine-star-ki/calculator';
 import { calculateDayLoshu } from '@/lib/fortune/directional/loshu';
 import { generateDirectionalReading } from '@/lib/fortune/directional/calculator';
@@ -19,7 +19,6 @@ const MapCore = dynamic(() => import('@/app/components/map/MapCore'), {
 });
 
 const DEFAULT_SETTINGS: MapSettings = {
-  showDirectionLines: true,
   showCompass: false,
   showTrackingLine: false,
   showControls: true,
@@ -60,6 +59,7 @@ export default function DirectionMapPage() {
   const [flyToOrigin, setFlyToOrigin] = useState(false);
   const [flyToDestination, setFlyToDestination] = useState(false);
   const [mobilePanel, setMobilePanel] = useState<'none' | 'left' | 'right'>('none');
+  const [searchResultMarkers, setSearchResultMarkers] = useState<SearchResultMarker[]>([]);
 
   // localStorage から生年月日を自動読み込み
   useEffect(() => {
@@ -197,22 +197,22 @@ export default function DirectionMapPage() {
       onSetCurrentTime: handleSetCurrentTime,
       birthDate,
       onBirthDateChange: handleBirthDateChange,
-      onBoardTypeChange: (type: 'year' | 'month' | 'day' | 'time') => {
-        setBoardType(type);
-      },
-      boardData: directionalReadings.length > 0 ? {
-        boardType,
-        loshuBoards: directionalReadings[0].reading.loshuBoards,
-        directions: directionalReadings[0].reading.directions,
-      } : null,
+      onSearchResults: setSearchResultMarkers,
+      boardType,
+      onBoardTypeChange: (type: 'year' | 'month' | 'day' | 'time') => setBoardType(type),
+      boardEntries: directionalReadings.length > 0
+        ? directionalReadings.map(({ modeName, modeColor, reading }) => ({
+            modeName,
+            modeColor,
+            boardType,
+            loshuBoards: reading.loshuBoards,
+            directions: reading.directions,
+          }))
+        : null,
     },
     right: {
       settings,
       onSettingsChange: handleSettingsChange,
-      boardType,
-      onBoardTypeChange: (type: 'year' | 'month' | 'day' | 'time') => {
-        setBoardType(type);
-      },
       selectedModes,
       onSelectedModesChange: handleSelectedModesChange,
       honmeiStarName: honmeiStarNum ? getStarName(honmeiStarNum) : undefined,
@@ -293,6 +293,18 @@ export default function DirectionMapPage() {
               flyToOrigin={flyToOrigin}
               flyToDestination={flyToDestination}
               onFlyDone={() => { setFlyToOrigin(false); setFlyToDestination(false); }}
+              searchMarkers={searchResultMarkers}
+              onSearchMarkerSelect={(marker, type) => {
+                if (type === 'origin') {
+                  setOrigin({ lat: marker.lat, lng: marker.lng });
+                  setFlyToOrigin(true);
+                } else {
+                  setDestination({ lat: marker.lat, lng: marker.lng });
+                  setFlyToDestination(true);
+                }
+                setSearchResultMarkers([]);
+                setMobilePanel('none');
+              }}
             />
           )}
           {!origin && (

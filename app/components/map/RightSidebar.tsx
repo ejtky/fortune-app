@@ -8,8 +8,6 @@ export type StarMode = 'honmei' | 'tsukimei' | 'nichimei';
 interface RightSidebarProps {
   settings: MapSettings;
   onSettingsChange: (s: Partial<MapSettings>) => void;
-  boardType: 'year' | 'month' | 'day' | 'time';
-  onBoardTypeChange: (v: 'year' | 'month' | 'day' | 'time') => void;
   selectedModes: StarMode[];
   onSelectedModesChange: (v: StarMode[]) => void;
   honmeiStarName?: string;
@@ -17,16 +15,10 @@ interface RightSidebarProps {
   nichimeiStarName?: string;
 }
 
-const BOARD_LABELS: Record<'year' | 'month' | 'day' | 'time', string> = {
-  year: '年盤', month: '月盤', day: '日盤', time: '時盤',
-};
-const BOARD_ORDER: ('year' | 'month' | 'day' | 'time')[] = ['year', 'month', 'day', 'time'];
 
 export default function RightSidebar({
   settings,
   onSettingsChange,
-  boardType,
-  onBoardTypeChange,
   selectedModes,
   onSelectedModesChange,
   honmeiStarName,
@@ -40,9 +32,6 @@ export default function RightSidebar({
       isOn ? selectedModes.filter(m => m !== mode) : [...selectedModes, mode]
     );
   };
-  const currentIdx = BOARD_ORDER.indexOf(boardType);
-  const prevBoard = () => onBoardTypeChange(BOARD_ORDER[(currentIdx + 3) % 4]);
-  const nextBoard = () => onBoardTypeChange(BOARD_ORDER[(currentIdx + 1) % 4]);
 
   const toggle = (key: keyof MapSettings, val?: boolean) =>
     onSettingsChange({ [key]: val ?? !settings[key] });
@@ -147,13 +136,18 @@ export default function RightSidebar({
         </div>
       </div>
 
+      {/* カラーオーバーレイ */}
+      <div className="p-3 border-b border-slate-100">
+        <SectionTitle>カラーオーバーレイ</SectionTitle>
+        <CheckRow label="方位色をマップに表示" checked={settings.showColors} onChange={v => toggle('showColors', v)} />
+      </div>
+
       {/* 表示切り替え */}
       <div className="p-3 border-b border-slate-100">
         <SectionTitle>表示切り替え</SectionTitle>
         <div className="space-y-0.5">
-          <CheckRow label="方位線" checked={settings.showDirectionLines} onChange={v => toggle('showDirectionLines', v)} />
-          <CheckRow label="方位色" checked={settings.showColors} onChange={v => toggle('showColors', v)} />
           <CheckRow label="コンパス" checked={settings.showCompass} onChange={v => toggle('showCompass', v)} />
+          <CheckRow label="盤上に表示" checked={settings.showBoardOnMap} onChange={v => toggle('showBoardOnMap', v)} />
           <CheckRow label="地図コントロール" checked={settings.showControls} onChange={v => toggle('showControls', v)} />
         </div>
       </div>
@@ -163,7 +157,7 @@ export default function RightSidebar({
         <SectionTitle>大圏方位線</SectionTitle>
         <DivisionButtons
           value={settings.lineType === 'great' ? settings.division : '45'}
-          onChange={v => onSettingsChange({ division: v, lineType: 'great', showDirectionLines: true })}
+          onChange={v => onSettingsChange({ division: v, lineType: 'great',  })}
         />
       </div>
 
@@ -172,7 +166,7 @@ export default function RightSidebar({
         <SectionTitle>等角方位線</SectionTitle>
         <DivisionButtons
           value={settings.lineType === 'rhumb' ? settings.division : '45'}
-          onChange={v => onSettingsChange({ division: v, lineType: 'rhumb', showDirectionLines: true })}
+          onChange={v => onSettingsChange({ division: v, lineType: 'rhumb',  })}
         />
         <div className="mt-1.5 flex justify-end">
           <button
@@ -199,25 +193,6 @@ export default function RightSidebar({
             {settings.compassLineType === 'great' ? '等角コンパスに変更' : '大圏コンパスに変更'}
           </button>
         </div>
-      </div>
-
-      {/* 九星方位盤 */}
-      <div className="p-3 border-b border-slate-100">
-        <SectionTitle>九星方位盤</SectionTitle>
-
-        {/* 盤切替 */}
-        <div className="flex items-center justify-between mb-2">
-          <button onClick={prevBoard} className="px-2 py-1 text-slate-500 hover:text-indigo-600 font-bold text-base">◀</button>
-          <span className="font-bold text-indigo-700 text-sm">{BOARD_LABELS[boardType]}</span>
-          <button onClick={nextBoard} className="px-2 py-1 text-slate-500 hover:text-indigo-600 font-bold text-base">▶</button>
-        </div>
-
-        {/* 盤上に表示 */}
-        <CheckRow
-          label="盤上に表示"
-          checked={settings.showBoardOnMap}
-          onChange={v => toggle('showBoardOnMap', v)}
-        />
       </div>
 
       {/* 凡例 */}

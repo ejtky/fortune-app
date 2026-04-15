@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useCallback, useState } from 'react';
+import { useEffect, useRef, useCallback, useState, useMemo } from 'react';
 import L from 'leaflet';
 import type { DirectionalReading } from '@/lib/fortune/directional/calculator';
 import type { DirectionKey } from '@/lib/fortune/directional/constants';
@@ -34,7 +34,6 @@ export interface DirectionalReadingEntry {
 }
 
 export interface MapSettings {
-  showDirectionLines: boolean;
   showCompass: boolean;
   showTrackingLine: boolean;
   showControls: boolean;
@@ -49,6 +48,13 @@ export interface MapSettings {
   showBoardOnMap: boolean;
 }
 
+export interface SearchResultMarker {
+  lat: number;
+  lng: number;
+  name: string;
+  subtext?: string;
+}
+
 export interface MapCoreProps {
   origin: { lat: number; lng: number } | null;
   destination: { lat: number; lng: number } | null;
@@ -60,6 +66,8 @@ export interface MapCoreProps {
   flyToOrigin?: boolean;
   flyToDestination?: boolean;
   onFlyDone?: () => void;
+  searchMarkers?: SearchResultMarker[];
+  onSearchMarkerSelect?: (marker: SearchResultMarker, type: 'origin' | 'destination') => void;
 }
 
 const DIRECTION_CENTER_ANGLES: Record<DirectionKey, number> = {
@@ -94,18 +102,63 @@ export default function MapCore({
   flyToOrigin,
   flyToDestination,
   onFlyDone,
+  searchMarkers,
+  onSearchMarkerSelect,
 }: MapCoreProps) {
   const mapRef = useRef<L.Map | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const layersRef = useRef<L.Layer[]>([]);
+  const searchMarkerLayersRef = useRef<L.Layer[]>([]);
   const trackLineRef = useRef<L.Polyline | null>(null);
   const contextMenuRef = useRef<L.Popup | null>(null);
   const [hoverInfo, setHoverInfo] = useState<HoverInfo | null>(null);
+  const [deviceHeading, setDeviceHeading] = useState<number>(0);
+  const [mapCenter, setMapCenter] = useState<{ lat: number; lng: number } | null>(null);
+  const compassCanvasRef = useRef<HTMLCanvasElement | null>(null);
 
   const applyDecl = useCallback((angle: number) => {
     const decl = settings.declinationDeg + settings.declinationMin / 60;
     return applyDeclination(angle, decl, settings.declinationDir);
   }, [settings.declinationDeg, settings.declinationMin, settings.declinationDir]);
+
+  // 最初のreadingから方位品質情報を取得（ローカルで）
+  const getDirectionsData = useCallback(() => {
+    if (directionalReadings.length === 0) return null;
+    return directionalReadings[0].reading.directions;
+  }, [directionalReadings]);
+
+  // デバイスの方位角取得
+  useEffect(() => {
+    const handleDeviceOrientation = (event: DeviceOrientationEvent) => {
+      if (event.alpha !== null) {
+        const heading = event.alpha; // 0-360度
+        setDeviceHeading(heading);
+      }
+    };
+
+    const requestPermission = async () => {
+      if (typeof DeviceOrientationEvent !== 'undefined' && (DeviceOrientationEvent as any).requestPermission) {
+        try {
+          const permission = await (DeviceOrientationEvent as any).requestPermission();
+          if (permission === 'granted') {
+            window.addEventListener('deviceorientation', handleDeviceOrientation);
+          }
+        } catch {
+          // ユーザーがいずれにしても拒否できるため、リスナーを追加
+          window.addEventListener('deviceorientation', handleDeviceOrientation);
+        }
+      } else {
+        // 古いブラウザはそのままリスナー追加
+        window.addEventListener('deviceorientation', handleDeviceOrientation);
+      }
+    };
+
+    requestPermission();
+
+    return () => {
+      window.removeEventListener('deviceorientation', handleDeviceOrientation);
+    };
+  }, []);
 
   // 地図初期化
   useEffect(() => {
@@ -173,9 +226,184 @@ export default function MapCore({
       }
     });
 
+    // 地図移動でコンパスの現在地ドット更新
+    map.on('moveend', () => {
+      const c = map.getCenter();
+      setMapCenter({ lat: c.lat, lng: c.lng });
+    });
+    // 初期値をセット
+    setMapCenter({ lat: map.getCenter().lat, lng: map.getCenter().lng });
+
+    // コンパスコントロール追加
+    const CompassControl = L.Control.extend({
+      onAdd(map: L.Map) {
+        const container = L.DomUtil.create('div', 'leaflet-control leaflet-bar');
+        const canvas = document.createElement('canvas');
+        canvas.width = 150;
+        canvas.height = 150;
+        canvas.style.display = 'block';
+        canvas.style.borderRadius = '50%';
+        canvas.style.boxShadow = '0 3px 10px rgba(0,0,0,.35)';
+        compassCanvasRef.current = canvas;
+        container.appendChild(canvas);
+
+        container.style.cursor = 'default';
+        container.style.backgroundColor = 'transparent';
+        container.style.border = 'none';
+
+        return container;
+      },
+    });
+
+    const compass = new (CompassControl as any)({ position: 'bottomright' });
+    compass.addTo(map);
+
     mapRef.current = map;
     return () => { map.remove(); mapRef.current = null; };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // コンパス描画（方位盤オーバービュー）
+  useEffect(() => {
+    const canvas = compassCanvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    const W = canvas.width;   // 150
+    const H = canvas.height;  // 150
+    const cx = W / 2;
+    const cy = H / 2;
+    const outerR = 66;  // セクター外径
+
+    ctx.clearRect(0, 0, W, H);
+
+    // 背景（円形クリップ）
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(cx, cy, outerR + 8, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(255,255,255,0.97)';
+    ctx.fill();
+    ctx.restore();
+
+    // 方位データ取得
+    const directions = directionalReadings.length > 0
+      ? directionalReadings[0].reading.directions.filter(d => d.direction !== 'CENTER')
+      : [];
+
+    // 8方位セクター（45°ずつ）
+    const SECTOR_BEARINGS = [0, 45, 90, 135, 180, 225, 270, 315];
+    const SECTOR_WIDTH = 45;
+
+    SECTOR_BEARINGS.forEach(bearingDeg => {
+      let fillColor = '#e2e8f0';
+      if (directions.length > 0) {
+        const nearest = directions.reduce((prev, curr) => {
+          const dp = Math.abs(((bearingDeg - DIRECTION_CENTER_ANGLES[prev.direction] + 180) % 360) - 180);
+          const dc = Math.abs(((bearingDeg - DIRECTION_CENTER_ANGLES[curr.direction] + 180) % 360) - 180);
+          return dc < dp ? curr : prev;
+        });
+        fillColor = settings.showColors ? QUALITY_COLORS[nearest.quality] : '#cbd5e1';
+      }
+
+      const startRad = ((bearingDeg - SECTOR_WIDTH / 2) - 90) * (Math.PI / 180);
+      const endRad   = ((bearingDeg + SECTOR_WIDTH / 2) - 90) * (Math.PI / 180);
+
+      // セクター塗り
+      ctx.beginPath();
+      ctx.moveTo(cx, cy);
+      ctx.arc(cx, cy, outerR, startRad, endRad);
+      ctx.closePath();
+      ctx.fillStyle = fillColor + 'bb'; // 73% opacity
+      ctx.fill();
+
+      // セクター境界線
+      ctx.beginPath();
+      ctx.moveTo(cx, cy);
+      ctx.arc(cx, cy, outerR, startRad, endRad);
+      ctx.closePath();
+      ctx.strokeStyle = 'rgba(30,30,30,0.35)';
+      ctx.lineWidth = 1.2;
+      ctx.stroke();
+    });
+
+    // 外枠円
+    ctx.beginPath();
+    ctx.arc(cx, cy, outerR, 0, Math.PI * 2);
+    ctx.strokeStyle = '#64748b';
+    ctx.lineWidth = 1.8;
+    ctx.stroke();
+
+    // N/S/E/W ラベル
+    const cardinals = [
+      { label: 'N', bearing: 0,   color: '#ef4444', bold: true },
+      { label: 'E', bearing: 90,  color: '#374151', bold: false },
+      { label: 'S', bearing: 180, color: '#374151', bold: false },
+      { label: 'W', bearing: 270, color: '#374151', bold: false },
+    ];
+    cardinals.forEach(({ label, bearing, color, bold }) => {
+      const rad = (bearing - 90) * (Math.PI / 180);
+      const x = cx + Math.cos(rad) * (outerR + 6);
+      const y = cy + Math.sin(rad) * (outerR + 6);
+      ctx.fillStyle = color;
+      ctx.font = `${bold ? 'bold ' : ''}12px sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(label, x, y);
+    });
+
+    // デバイス方位の細い補助線
+    if (deviceHeading !== 0) {
+      const headRad = (deviceHeading - 90) * (Math.PI / 180);
+      ctx.save();
+      ctx.beginPath();
+      ctx.moveTo(cx, cy);
+      ctx.lineTo(cx + Math.cos(headRad) * outerR, cy + Math.sin(headRad) * outerR);
+      ctx.strokeStyle = 'rgba(99,102,241,0.6)';
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([4, 3]);
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    // 現在地ドット（地図中心の方位）
+    if (mapCenter && origin) {
+      const bearing = getBearing(origin.lat, origin.lng, mapCenter.lat, mapCenter.lng);
+      const dotRad = (bearing - 90) * (Math.PI / 180);
+      const dotR   = outerR * 0.58;
+      const dotX   = cx + Math.cos(dotRad) * dotR;
+      const dotY   = cy + Math.sin(dotRad) * dotR;
+
+      // 方向線（起点→現在地）
+      ctx.save();
+      ctx.beginPath();
+      ctx.moveTo(cx, cy);
+      ctx.lineTo(dotX, dotY);
+      ctx.strokeStyle = 'rgba(99,102,241,0.4)';
+      ctx.lineWidth = 1;
+      ctx.setLineDash([3, 3]);
+      ctx.stroke();
+      ctx.restore();
+
+      // ドット本体
+      ctx.beginPath();
+      ctx.arc(dotX, dotY, 5.5, 0, Math.PI * 2);
+      ctx.fillStyle = '#6366f1';
+      ctx.fill();
+      ctx.strokeStyle = '#fff';
+      ctx.lineWidth = 1.8;
+      ctx.stroke();
+    }
+
+    // 起点（中心）
+    ctx.beginPath();
+    ctx.arc(cx, cy, 3.5, 0, Math.PI * 2);
+    ctx.fillStyle = '#1e293b';
+    ctx.fill();
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+
+  }, [directionalReadings, settings.showColors, mapCenter, origin, deviceHeading]);
 
   // 地図コントロール表示切替
   useEffect(() => {
@@ -208,6 +436,70 @@ export default function MapCore({
       onFlyDone?.();
     }
   }, [flyToDestination]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // 検索結果ピンの描画
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+
+    // 既存の検索ピンをクリア
+    searchMarkerLayersRef.current.forEach(l => l.remove());
+    searchMarkerLayersRef.current = [];
+
+    if (!searchMarkers || searchMarkers.length === 0) return;
+
+    searchMarkers.forEach((sm, i) => {
+      const marker = L.marker([sm.lat, sm.lng], {
+        icon: L.divIcon({
+          html: `<div style="
+            background:#4285f4;color:#fff;
+            width:28px;height:28px;border-radius:50%;
+            border:2.5px solid #fff;
+            box-shadow:0 2px 8px rgba(0,0,0,0.4);
+            display:flex;align-items:center;justify-content:center;
+            font-size:11px;font-weight:bold;
+          ">${i + 1}</div>`,
+          className: '',
+          iconSize: [28, 28],
+          iconAnchor: [14, 14],
+        }),
+        zIndexOffset: 800,
+      });
+
+      marker.bindPopup(`
+        <div style="font-size:13px;padding:2px;min-width:160px;">
+          <div style="font-weight:bold;margin-bottom:4px;color:#1e293b;">${sm.name}</div>
+          ${sm.subtext ? `<div style="color:#94a3b8;font-size:11px;margin-bottom:8px;">${sm.subtext}</div>` : ''}
+          <button id="sm-origin-${i}" style="display:block;width:100%;padding:6px 8px;margin-bottom:5px;background:#6366f1;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:12px;">🏠 起点に設定</button>
+          <button id="sm-dest-${i}" style="display:block;width:100%;padding:6px 8px;background:#10b981;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:12px;">⛳ 目的地に設定</button>
+        </div>
+      `);
+
+      marker.on('popupopen', () => {
+        setTimeout(() => {
+          document.getElementById(`sm-origin-${i}`)?.addEventListener('click', () => {
+            onSearchMarkerSelect?.(sm, 'origin');
+            map.closePopup();
+          });
+          document.getElementById(`sm-dest-${i}`)?.addEventListener('click', () => {
+            onSearchMarkerSelect?.(sm, 'destination');
+            map.closePopup();
+          });
+        }, 100);
+      });
+
+      marker.addTo(map);
+      searchMarkerLayersRef.current.push(marker);
+    });
+
+    // 全ピンが見えるようにフィット
+    if (searchMarkers.length > 1) {
+      const bounds = L.latLngBounds(searchMarkers.map(sm => [sm.lat, sm.lng] as [number, number]));
+      map.fitBounds(bounds, { padding: [60, 60], maxZoom: 13 });
+    } else if (searchMarkers.length === 1) {
+      map.flyTo([searchMarkers[0].lat, searchMarkers[0].lng], 13, { duration: 1 });
+    }
+  }, [searchMarkers]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // 方位ゾーン・線・マーカーの描画
   useEffect(() => {
@@ -298,7 +590,7 @@ export default function MapCore({
 
           const sector = L.polygon(
             sectorPts,
-            { color: 'rgba(0,0,0,0.15)', fillColor: color, fillOpacity: 0.10, weight: 0.6, bubblingMouseEvents: true }
+            { color: 'rgba(0,0,0,0.45)', fillColor: color, fillOpacity: 0.18, weight: 1.8, bubblingMouseEvents: true }
           );
 
           sector.on('mouseover', () => {
@@ -324,43 +616,7 @@ export default function MapCore({
           addLayer(sector);
         });
 
-        // ③ 方位線
-        if (settings.showDirectionLines) {
-          const lineFunc = settings.lineType === 'rhumb' ? rhumbLine : greatCircleLine;
-          sectorAngles.forEach(bearingDeg => {
-            const adjustedBearing = applyDecl(bearingDeg);
-            const pts = lineFunc(origin.lat, origin.lng, adjustedBearing, lineDist);
-            const nearest = directions.reduce((prev, curr) => {
-              const dp = Math.abs(((bearingDeg - DIRECTION_CENTER_ANGLES[prev.direction] + 180) % 360) - 180);
-              const dc = Math.abs(((bearingDeg - DIRECTION_CENTER_ANGLES[curr.direction] + 180) % 360) - 180);
-              return dc < dp ? curr : prev;
-            });
-            const lineColor = settings.showColors ? QUALITY_COLORS[nearest.quality] : '#9ca3af';
-            addLayer(L.polyline(pts, {
-              color: lineColor,
-              weight: 1.5,
-              opacity: 0.7,
-              dashArray: dashArray,
-              interactive: false,
-            }));
 
-            // ラベルは最初の reading のみ表示
-            if (readingIdx === 0) {
-              const labelPts = lineFunc(origin.lat, origin.lng, adjustedBearing, 96000, 2);
-              const labelPos = labelPts[labelPts.length - 1];
-              const labelText = settings.division === '24'
-                ? NIJUSHISAN.find(m => m.angle === bearingDeg)?.label ?? `${bearingDeg}°`
-                : `${bearingDeg}°`;
-              addLayer(L.marker(labelPos, {
-                icon: L.divIcon({
-                  html: `<div style="font-size:10px;font-weight:bold;color:${lineColor};white-space:nowrap;text-shadow:0 0 3px #fff,0 0 3px #fff;">${labelText}</div>`,
-                  className: '', iconAnchor: [10, 8],
-                }),
-                interactive: false,
-              }));
-            }
-          });
-        }
       });
     }
 

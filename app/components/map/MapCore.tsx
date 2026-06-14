@@ -5,10 +5,12 @@ import L from 'leaflet';
 import type { DirectionalReading } from '@/lib/fortune/directional/calculator';
 import type { DirectionKey } from '@/lib/fortune/directional/constants';
 import { QUALITY_COLORS } from '@/lib/fortune/directional/constants';
+import { DIRECTION_COLOR_HEX } from '@/lib/fortune/directional/colors';
 import {
   greatCircleLine,
   rhumbLine,
   DIVISION_ANGLES,
+  DIVISION_HALF_WIDTHS,
   NIJUSHISAN,
   getBearing,
   getDistance,
@@ -68,6 +70,7 @@ export interface MapCoreProps {
   onFlyDone?: () => void;
   searchMarkers?: SearchResultMarker[];
   onSearchMarkerSelect?: (marker: SearchResultMarker, type: 'origin' | 'destination') => void;
+  pinnedPoint?: { lat: number; lng: number } | null;
 }
 
 const DIRECTION_CENTER_ANGLES: Record<DirectionKey, number> = {
@@ -104,13 +107,14 @@ export default function MapCore({
   onFlyDone,
   searchMarkers,
   onSearchMarkerSelect,
+  pinnedPoint,
 }: MapCoreProps) {
   const mapRef = useRef<L.Map | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const layersRef = useRef<L.Layer[]>([]);
   const searchMarkerLayersRef = useRef<L.Layer[]>([]);
   const trackLineRef = useRef<L.Polyline | null>(null);
-  const contextMenuRef = useRef<L.Popup | null>(null);
+  const pinMarkerRef = useRef<L.Marker | null>(null);
   const [hoverInfo, setHoverInfo] = useState<HoverInfo | null>(null);
   const [deviceHeading, setDeviceHeading] = useState<number>(0);
   const [mapCenter, setMapCenter] = useState<{ lat: number; lng: number } | null>(null);
@@ -181,34 +185,10 @@ export default function MapCore({
       maxZoom: 19,
     }).addTo(map);
 
-    // 地図クリックでコンテキストメニュー
+    // 地図クリックは「印（ピン）」を立てるだけ。起点/目的地の決定は左カラムで行う
     map.on('click', (e) => {
       const { lat, lng } = e.latlng;
-      if (contextMenuRef.current) {
-        map.closePopup(contextMenuRef.current);
-      }
-      const popup = L.popup({ className: 'kyusei-popup' })
-        .setLatLng(e.latlng)
-        .setContent(`
-          <div style="font-size:13px;padding:2px;">
-            <div style="font-weight:bold;margin-bottom:8px;color:#374151;">📍 この地点を設定</div>
-            <button id="set-origin-btn" style="display:block;width:100%;padding:6px 8px;margin-bottom:6px;background:#6366f1;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:12px;">🏠 起点に設定</button>
-            <button id="set-dest-btn" style="display:block;width:100%;padding:6px 8px;background:#10b981;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:12px;">⛳ 目的地に設定</button>
-          </div>
-        `)
-        .openOn(map);
-      contextMenuRef.current = popup;
-
-      setTimeout(() => {
-        document.getElementById('set-origin-btn')?.addEventListener('click', () => {
-          onOriginChange({ lat, lng });
-          map.closePopup(popup);
-        });
-        document.getElementById('set-dest-btn')?.addEventListener('click', () => {
-          onMapClick(lat, lng);
-          map.closePopup(popup);
-        });
-      }, 100);
+      onMapClick(lat, lng);
     });
 
     // 追っかけ線（マウス移動）
@@ -501,6 +481,25 @@ export default function MapCore({
     }
   }, [searchMarkers]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // 地図クリックで立てた印（ピン）の描画
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    if (pinMarkerRef.current) {
+      pinMarkerRef.current.remove();
+      pinMarkerRef.current = null;
+    }
+    if (pinnedPoint) {
+      pinMarkerRef.current = L.marker([pinnedPoint.lat, pinnedPoint.lng], {
+        icon: L.divIcon({
+          html: `<div style="background:#f59e0b;width:16px;height:16px;border-radius:50% 50% 50% 0;transform:rotate(-45deg);border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.4);"></div>`,
+          className: '', iconSize: [16, 16], iconAnchor: [8, 16],
+        }),
+        zIndexOffset: 900,
+      }).addTo(map);
+    }
+  }, [pinnedPoint]);
+
   // 方位ゾーン・線・マーカーの描画
   useEffect(() => {
     const map = mapRef.current;
@@ -509,7 +508,9 @@ export default function MapCore({
     layersRef.current.forEach(l => l.remove());
     layersRef.current = [];
 
-    const sectorDist = 5000000;
+    // 扇形塗りが北極（東京から約6,100km）を越えると、メルカトル地図で経度反転して横線（弦）として現れる
+    // これを防ぐため扇形・境界線とも極の手前で打ち切る
+    const sectorDist = 5800000;
     const lineDist   = 9000000;
 
     const addLayer = (layer: L.Layer) => {
@@ -548,50 +549,55 @@ export default function MapCore({
 
     // ① 各 reading のカラーゾーン + 方位線を順に描画
     if (directionalReadings.length > 0) {
-      // 分割設定からセクター角度リストと幅を算出
+      // 分割設定からセクター角度リストと各セクターの半幅を算出
+      // 30_60 は N/E/S/W=半幅15°、四隅=半幅30° の非対称8分割
       const sectorAngles = DIVISION_ANGLES[settings.division];
-      const sectorWidth  = 360 / sectorAngles.length;
+      const halfWidths   = DIVISION_HALF_WIDTHS[settings.division];
 
       directionalReadings.forEach(({ modeName, modeColor, reading }, readingIdx) => {
         const directions = reading.directions.filter(d => d.direction !== 'CENTER');
         const dashArray = LINE_DASHES[readingIdx % LINE_DASHES.length];
 
         // ① カラーゾーン
-        sectorAngles.forEach(bearingDeg => {
+        sectorAngles.forEach((bearingDeg, sectorIdx) => {
           const nearest = directions.reduce((prev, curr) => {
             const dp = Math.abs(((bearingDeg - DIRECTION_CENTER_ANGLES[prev.direction] + 180) % 360) - 180);
             const dc = Math.abs(((bearingDeg - DIRECTION_CENTER_ANGLES[curr.direction] + 180) % 360) - 180);
             return dc < dp ? curr : prev;
           });
-          const color = settings.showColors ? QUALITY_COLORS[nearest.quality] : '#9ca3af';
+          // 方位盤と同じ分類カテゴリだが、マップは半透明オーバーレイなので濃い側のパレット(DIRECTION_COLOR_HEX)を使う
+          const color = DIRECTION_COLOR_HEX[nearest.topCategory];
+          // カラーオーバーレイ off／普通カテゴリ（吉でも凶でもない方位）は塗りを描画しない
+          const isNormal = nearest.topCategory === 'normal';
+          const fillOp = (settings.showColors && !isNormal) ? (directionalReadings.length > 1 ? 0.09 : 0.14) : 0;
           const dirLabel = settings.division === '24'
             ? NIJUSHISAN.find(m => m.angle === bearingDeg)?.label ?? `${bearingDeg}°`
             : nearest.directionName;
 
-          const startAngle = bearingDeg - sectorWidth / 2;
-          const endAngle   = bearingDeg + sectorWidth / 2;
+          const halfWidth  = halfWidths[sectorIdx];
+          const startAngle = bearingDeg - halfWidth;
+          const endAngle   = bearingDeg + halfWidth;
           const sideSteps  = 20;
-          const arcSteps   = Math.max(8, Math.round(sectorWidth * 2));
           const sectorLineFunc = settings.lineType === 'rhumb' ? rhumbLine : greatCircleLine;
 
+          // 外側のアーク（円弧）は描かず、左右の放射線の外端を直線で結んで閉じる
+          // （地図上に「丸の外周」が出ないようにする）
           const leftSide = sectorLineFunc(origin.lat, origin.lng, applyDecl(startAngle), sectorDist, sideSteps);
-          const arcPts: L.LatLngExpression[] = [];
-          for (let i = 0; i <= arcSteps; i++) {
-            const angle = startAngle + (endAngle - startAngle) * (i / arcSteps);
-            const pts = sectorLineFunc(origin.lat, origin.lng, applyDecl(angle), sectorDist, 1);
-            arcPts.push(pts[pts.length - 1]);
-          }
           const rightSide = sectorLineFunc(origin.lat, origin.lng, applyDecl(endAngle), sectorDist, sideSteps);
           const sectorPts: L.LatLngExpression[] = [
             ...leftSide,
-            ...arcPts.slice(1, -1),
             ...[...rightSide].reverse(),
           ];
 
+          // 塗りつぶしのみ（外周＝外端どうしを結ぶ輪郭線は描かない）
           const sector = L.polygon(
             sectorPts,
-            { color: 'rgba(0,0,0,0.45)', fillColor: color, fillOpacity: 0.18, weight: 1.8, bubblingMouseEvents: true }
+            { stroke: false, fillColor: color, fillOpacity: fillOp, bubblingMouseEvents: true }
           );
+
+          // 境界線（中心→外への放射線）は扇形塗りと同じ leftSide/rightSide を使う
+          addLayer(L.polyline(leftSide, { color: 'rgba(0,0,0,0.45)', weight: 1.2, interactive: false }));
+          addLayer(L.polyline(rightSide, { color: 'rgba(0,0,0,0.45)', weight: 1.2, interactive: false }));
 
           sector.on('mouseover', () => {
             // ホバー時に全 reading の情報を収集

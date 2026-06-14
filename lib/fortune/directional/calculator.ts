@@ -4,18 +4,48 @@
  */
 
 import type { DirectionKey, DirectionQuality } from './constants';
-import { DIRECTIONS, QUALITY_DESCRIPTIONS } from './constants';
-import type { LoshuBoards } from './loshu';
+import { BASE_LOSHU_LAYOUT, DIRECTIONS, LEGACY_DIRECTION_QUALITY } from './constants';
+import type { DirectionCategory } from './colors';
+import {
+  CATEGORY_PRIORITY,
+  DIRECTION_CATEGORY_LABEL,
+  getDirectionColorClass,
+  isKippouCategory,
+  isKyouCategory,
+  pickTopCategory,
+} from './colors';
+import { classifyHouiShin, type HouiShinName } from './houi-shin';
+import type { LoshuBoards, LoshuLayout } from './loshu';
 import {
   calculateAllLoshuBoards,
   getStarAtDirection
 } from './loshu';
 import {
+  getEtoBranchName,
+  getEtoDirection,
+  getYearEtoBranch,
+  getYearTenkanName,
+  oppositeEto,
+} from './eto-tables';
+import { calculateMaxKippou } from '../nine-star-ki/calculator';
+import {
   type SatsuInfo,
   calculateAllSatsu,
+  calculateAnkenSatsu,
+  calculateGetsuhaSatsu,
+  calculateGoohSatsu,
+  calculateHonmeiSatsu,
+  calculateHonmeiTekiSatsu,
+  calculateNippaSatsu,
+  calculateSaihaSatsu,
+  calculateTsukimeiSatsu,
+  calculateTsukimeitekiSatsu,
+  getOppositeDirection,
   getSatsuAtDirection,
-  evaluateDirectionDanger
 } from './satsu';
+
+export type DirectionBoardType = 'year' | 'month' | 'day' | 'time';
+export type DirectionClassification = DirectionCategory[] & { houiShinNames: HouiShinName[] };
 
 /**
  * 方位の分析結果
@@ -23,12 +53,17 @@ import {
 export interface DirectionAnalysis {
   direction: DirectionKey;
   directionName: string;
+  categories: DirectionCategory[];
+  topCategory: DirectionCategory;
+  colorClass: string;
   quality: DirectionQuality;
-  score: number; // 0-100（高いほど良い）
+  score: number; // 0-100（既存UIの並び替え用）
   yearStar: number;
   monthStar: number;
   dayStar: number;
   satsu: SatsuInfo | null;
+  satsuList: SatsuInfo[];
+  houiShinNames: HouiShinName[];
   isLucky: boolean;
   reason: string;
 }
@@ -48,71 +83,128 @@ export interface DirectionalReading {
   summary: string;
 }
 
+export function classifyDirection(args: {
+  direction: DirectionKey;
+  honmei: number;
+  getsumei: number;
+  layout: LoshuLayout;
+  boardType: DirectionBoardType;
+  year?: number;
+  yearEto?: string;
+  yearTenkan?: string;
+  month?: number;
+  day?: number;
+}): DirectionClassification {
+  const cats = Object.assign([] as DirectionCategory[], {
+    houiShinNames: [] as HouiShinName[],
+  }) as DirectionClassification;
+  const add = (cat: DirectionCategory) => {
+    if (!cats.includes(cat)) cats.push(cat);
+  };
+  const addSatsu = (satsu: SatsuInfo | null) => {
+    if (satsu?.direction === args.direction) add(satsu.type);
+  };
+
+  addSatsu(calculateGoohSatsu(args.layout));
+  addSatsu(calculateAnkenSatsu(args.layout));
+
+  if (args.boardType === 'year') {
+    if (args.yearEto) {
+      const saihaDirection = getEtoDirection(oppositeEto(args.yearEto) ?? '');
+      if (saihaDirection === args.direction) add('saiha');
+    } else if (args.year !== undefined) {
+      addSatsu(calculateSaihaSatsu(args.year));
+    }
+  } else if (args.boardType === 'month' && args.month !== undefined) {
+    addSatsu(calculateGetsuhaSatsu(args.year ?? new Date().getFullYear(), args.month));
+  } else if (args.boardType === 'day' && args.month !== undefined && args.day !== undefined) {
+    addSatsu(calculateNippaSatsu(args.year ?? new Date().getFullYear(), args.month, args.day));
+  }
+
+  addSatsu(calculateHonmeiSatsu(args.layout, args.honmei));
+  addSatsu(calculateHonmeiTekiSatsu(args.layout, args.honmei));
+
+  if (isStarNumber(args.getsumei)) {
+    addSatsu(calculateTsukimeiSatsu(args.layout, args.getsumei));
+    addSatsu(calculateTsukimeitekiSatsu(args.layout, args.getsumei));
+  }
+
+  if (args.boardType === 'year' && isTeiiTaichu(args.layout, args.direction)) {
+    add('teii_taichu');
+  }
+
+  const targetStar = getStarAtDirection(args.layout, args.direction);
+  if (isStarNumber(args.getsumei) && calculateMaxKippou(args.honmei, args.getsumei).includes(targetStar)) {
+    add('max_kippou');
+  } else if (targetStar !== 5 && isLuckyDirection(args.honmei, targetStar)) {
+    add('kichi');
+  }
+
+  if (cats.length === 0) add('normal');
+  if (args.boardType === 'year' && args.yearEto && args.yearTenkan) {
+    cats.houiShinNames = classifyHouiShin(args.yearEto, args.yearTenkan, DIRECTIONS[args.direction]);
+  }
+
+  return cats;
+}
+
 /**
  * 方位の吉凶を評価
- *
- * @param direction 方位
- * @param loshuBoards 洛書盤
- * @param honmeiStar 本命星
- * @param satsuList 殺のリスト
- * @returns 方位の分析結果
  */
 export function analyzeDirection(
   direction: DirectionKey,
   loshuBoards: LoshuBoards,
   honmeiStar: number,
   satsuList: SatsuInfo[],
-  boardType: 'year' | 'month' | 'day' | 'time'
+  boardType: DirectionBoardType,
+  options: {
+    tsukimeiStar?: number;
+    year: number;
+    month: number;
+    day: number;
+  }
 ): DirectionAnalysis {
-  // 各盤でのこの方位の星を取得
-  const targetStar = getStarAtDirection(loshuBoards[boardType], direction);
+  const targetLayout = loshuBoards[boardType];
+  const targetStar = getStarAtDirection(targetLayout, direction);
   const yearStar = getStarAtDirection(loshuBoards.year, direction);
   const monthStar = getStarAtDirection(loshuBoards.month, direction);
   const dayStar = getStarAtDirection(loshuBoards.day, direction);
+  const yearEto = getEtoBranchName(getYearEtoBranch(options.year));
+  const yearTenkan = getYearTenkanName(options.year);
 
-  // 殺のチェック
+  const categories = classifyDirection({
+    direction,
+    honmei: honmeiStar,
+    getsumei: options.tsukimeiStar ?? 0,
+    layout: targetLayout,
+    boardType,
+    year: options.year,
+    yearEto,
+    yearTenkan,
+    month: options.month,
+    day: options.day,
+  });
+  const topCategory = pickTopCategory(categories);
   const satsu = getSatsuAtDirection(satsuList, direction);
-  const dangerScore = evaluateDirectionDanger(satsuList, direction);
-
-  // 吉方位かどうかの判定（選択された盤の星で判定）
-  const isLucky = isLuckyDirection(honmeiStar, targetStar);
-
-  // スコア計算（0-100）
-  let score = 50; // 基本スコア
-
-  // 殺がある場合は大幅減点（最優先）
-  if (satsu) {
-    score -= 50; // 殺がある方位は必ず凶方位になる
-  }
-  score -= dangerScore;
-
-  // 吉方位なら加点
-  if (isLucky && !satsu) {
-    score += 40; // 殺がない吉方位のみ加点
-  }
-
-  // 五行の相性で調整
-  const elementScore = evaluateElementCompatibility(honmeiStar, targetStar);
-  score += elementScore;
-
-  // スコアを 0-100 に正規化
-  score = Math.max(0, Math.min(100, score));
-
-  // 品質評価
-  const quality = scoreToQuality(score);
-
-  // 理由の生成
-  const reason = generateReason(direction, quality, isLucky, satsu, targetStar);
+  const directionSatsuList = satsuList.filter(item => item.direction === direction);
+  const score = scoreCategories(categories);
+  const isLucky = isKippouCategory(categories) && !isKyouCategory(categories);
+  const reason = generateReason(direction, categories, satsu, targetStar);
 
   return {
     direction,
     directionName: DIRECTIONS[direction],
-    quality,
+    categories,
+    topCategory,
+    colorClass: getDirectionColorClass(categories),
+    quality: toLegacyQuality(categories),
     score,
     yearStar,
     monthStar,
     dayStar,
     satsu,
+    satsuList: directionSatsuList,
+    houiShinNames: categories.houiShinNames,
     isLucky,
     reason
   };
@@ -120,10 +212,6 @@ export function analyzeDirection(
 
 /**
  * 吉方位かどうかを判定
- *
- * @param honmeiStar 本命星（判定基準星）
- * @param targetStar 盤の星
- * @returns 吉方位かどうか
  */
 function isLuckyDirection(
   honmeiStar: number,
@@ -133,11 +221,7 @@ function isLuckyDirection(
 }
 
 /**
- * 五行の相生関係（吉関係）をチェック
- *
- * @param star1 自分の星
- * @param star2 相手（盤）の星
- * @returns 吉関係（生気・退気・比和）か
+ * 五行の相生関係をチェック
  */
 function isElementGenerating(star1: number, star2: number): boolean {
   const elementMap: Record<number, string> = {
@@ -152,87 +236,43 @@ function isElementGenerating(star1: number, star2: number): boolean {
   const element1 = elementMap[star1];
   const element2 = elementMap[star2];
 
-  // 相手が自分を生じる（生気）、自分が相手を生じる（退気）、同じ（比和）は吉
   return generating[element2] === element1 || generating[element1] === element2 || element1 === element2;
 }
 
-/**
- * 五行の相剋関係（凶関係）をチェック
- *
- * @param star1 自分の星
- * @param star2 相手（盤）の星
- * @returns 凶関係（死気・殺気）か
- */
-function isElementControlling(star1: number, star2: number): boolean {
-  const elementMap: Record<number, string> = {
-    1: '水', 2: '土', 3: '木', 4: '木',
-    5: '土', 6: '金', 7: '金', 8: '土', 9: '火'
-  };
-
-  const controlling: Record<string, string> = {
-    '木': '土', '土': '水', '水': '火', '火': '金', '金': '木'
-  };
-
-  const element1 = elementMap[star1];
-  const element2 = elementMap[star2];
-
-  // 自分が相手を剋する（死気）、相手が自分を剋する（殺気）
-  return controlling[element1] === element2 || controlling[element2] === element1;
+function isStarNumber(value: number): boolean {
+  return Number.isInteger(value) && value >= 1 && value <= 9;
 }
 
-/**
- * 五行の相性を評価
- *
- * @param honmeiStar 本命星
- * @param directionStar 方位の星
- * @returns スコア調整値（-20 ~ +20）
- */
-function evaluateElementCompatibility(honmeiStar: number, directionStar: number): number {
-  const elementMap: Record<number, string> = {
-    1: '水', 2: '土', 3: '木', 4: '木',
-    5: '土', 6: '金', 7: '金', 8: '土', 9: '火'
-  };
+function isTeiiTaichu(layout: LoshuLayout, direction: DirectionKey): boolean {
+  if (direction === 'CENTER') return false;
 
-  const element1 = elementMap[honmeiStar];
-  const element2 = elementMap[directionStar];
+  const opposite = getOppositeDirection(direction);
+  if (opposite === 'CENTER') return false;
 
-  // 相生（生じる）
-  const generating: Record<string, string> = {
-    '木': '火', '火': '土', '土': '金', '金': '水', '水': '木'
-  };
-
-  // 相剋（克する）
-  const controlling: Record<string, string> = {
-    '木': '土', '土': '水', '水': '火', '火': '金', '金': '木'
-  };
-
-  if (generating[element2] === element1) {
-    return 30; // 生気（大吉）
-  } else if (generating[element1] === element2) {
-    return 20; // 退気（吉）
-  } else if (controlling[element2] === element1) {
-    return -30; // 殺気（大凶）
-  } else if (controlling[element1] === element2) {
-    return -20; // 死気（凶）
-  } else if (element1 === element2) {
-    return 10; // 比和（吉）
-  }
-
-  return 0; // 普通
+  return layout[direction] === BASE_LOSHU_LAYOUT[opposite];
 }
 
-/**
- * スコアから品質評価を算出
- *
- * @param score スコア（0-100）
- * @returns 品質評価
- */
-function scoreToQuality(score: number): DirectionQuality {
-  if (score >= 75) return 'excellent';  // 大吉（75以上）
-  if (score >= 55) return 'good';       // 吉（55-74）
-  if (score >= 35) return 'neutral';    // 平（35-54）
-  if (score >= 15) return 'caution';    // 小凶（15-34）
-  return 'avoid';                       // 大凶（15未満）
+function scoreCategories(cats: DirectionCategory[]): number {
+  const top = pickTopCategory(cats);
+
+  if (CATEGORY_PRIORITY[top] >= 100) return 0;
+  if (top === 'honmei' || top === 'tsukimei') return 20;
+  if (top === 'honmeiteki' || top === 'tsukimeiteki') return 30;
+  if (top === 'teii_taichu') return 40;
+  if (top === 'max_kippou') return 90;
+  if (top === 'kichi') return 70;
+  return 50;
+}
+
+function toLegacyQuality(cats: DirectionCategory[]): DirectionQuality {
+  const top = pickTopCategory(cats);
+
+  if (CATEGORY_PRIORITY[top] >= 100) return LEGACY_DIRECTION_QUALITY.AVOID;
+  if (CATEGORY_PRIORITY[top] >= 80) return LEGACY_DIRECTION_QUALITY.CAUTION;
+  if (top === 'teii_taichu') return LEGACY_DIRECTION_QUALITY.CAUTION;
+  if (top === 'max_kippou') return LEGACY_DIRECTION_QUALITY.EXCELLENT;
+  if (top === 'kichi') return LEGACY_DIRECTION_QUALITY.GOOD;
+  return LEGACY_DIRECTION_QUALITY.NEUTRAL;
 }
 
 /**
@@ -240,10 +280,9 @@ function scoreToQuality(score: number): DirectionQuality {
  */
 function generateReason(
   direction: DirectionKey,
-  quality: DirectionQuality,
-  isLucky: boolean,
+  cats: DirectionCategory[],
   satsu: SatsuInfo | null,
-  yearStar: number
+  targetStar: number
 ): string {
   const starNames: Record<number, string> = {
     1: '一白水星', 2: '二黒土星', 3: '三碧木星',
@@ -251,14 +290,19 @@ function generateReason(
     7: '七赤金星', 8: '八白土星', 9: '九紫火星'
   };
 
-  let reason = `${DIRECTIONS[direction]}には${starNames[yearStar]}が回座しています。`;
+  const top = pickTopCategory(cats);
+  let reason = `${DIRECTIONS[direction]}には${starNames[targetStar]}が回座しています。`;
 
   if (satsu) {
     reason += `${satsu.name}にあたり、${satsu.description}`;
-  } else if (isLucky) {
-    reason += `吉方位です。この方位への移動や新規事業に適しています。`;
+  } else if (CATEGORY_PRIORITY[top] >= 80) {
+    reason += `${DIRECTION_CATEGORY_LABEL[top]}にあたるため、重要な移動や新規事業は慎重に判断してください。`;
+  } else if (top === 'max_kippou') {
+    reason += `最大吉方です。移動や開運行動に活用しやすい方位です。`;
+  } else if (top === 'kichi') {
+    reason += `吉方位です。通常の移動や活動に向いています。`;
   } else {
-    reason += `${QUALITY_DESCRIPTIONS[quality]}`;
+    reason += `普通の方位です。大きな吉凶は見られません。`;
   }
 
   return reason;
@@ -266,52 +310,39 @@ function generateReason(
 
 /**
  * 完全な方位学の読み取りを生成
- *
- * @param date 日付
- * @param honmeiStar 本命星
- * @param tsukimeiStar 月命星（省略可。指定すると月命殺・月命的殺も計算）
- * @param boardType 評価対象の盤（year, month, day）
- * @returns 方位学の読み取り結果
  */
 export function generateDirectionalReading(
   date: Date,
   honmeiStar: number,
   tsukimeiStar?: number,
-  boardType: 'year' | 'month' | 'day' | 'time' = 'month'
+  boardType: DirectionBoardType = 'month'
 ): DirectionalReading {
-  // 洛書盤を計算
   const loshuBoards = calculateAllLoshuBoards(date);
+  const targetLoshuLayout = loshuBoards[boardType];
+  const dateParts = {
+    year: date.getFullYear(),
+    month: date.getMonth() + 1,
+    day: date.getDate(),
+  };
 
-  // 選択された盤タイプの殺のみを計算
-  let targetLoshuLayout;
-  if (boardType === 'year') {
-    targetLoshuLayout = loshuBoards.year;
-  } else if (boardType === 'month') {
-    targetLoshuLayout = loshuBoards.month;
-  } else if (boardType === 'day') {
-    targetLoshuLayout = loshuBoards.day;
-  } else {
-    targetLoshuLayout = loshuBoards.time;
-  }
+  const satsuList = calculateAllSatsu(targetLoshuLayout, honmeiStar, tsukimeiStar, {
+    boardType,
+    ...dateParts,
+  });
 
-  const satsuList = calculateAllSatsu(targetLoshuLayout, honmeiStar, tsukimeiStar);
-
-  // 全方位を分析
   const directions = (Object.keys(DIRECTIONS) as DirectionKey[]).map(direction =>
-    analyzeDirection(direction, loshuBoards, honmeiStar, satsuList, boardType)
+    analyzeDirection(direction, loshuBoards, honmeiStar, satsuList, boardType, {
+      tsukimeiStar,
+      ...dateParts,
+    })
   );
 
-  // ベスト3とワースト3を抽出
   const sortedByScore = [...directions].sort((a, b) => b.score - a.score);
   const bestDirections = sortedByScore.slice(0, 3).map(d => d.direction);
   const worstDirections = sortedByScore.slice(-3).map(d => d.direction);
-
-  // 吉方位のリスト
   const luckyDirections = directions
     .filter(d => d.isLucky && !d.satsu)
     .map(d => d.direction);
-
-  // サマリー生成
   const summary = generateSummary(date, bestDirections, worstDirections, satsuList);
 
   return {
@@ -325,13 +356,6 @@ export function generateDirectionalReading(
     luckyDirections,
     summary
   };
-}
-
-/**
- * 殺のseverityを数値に変換（比較用）
- */
-function severityRank(severity: 'critical' | 'high' | 'medium'): number {
-  return severity === 'critical' ? 3 : severity === 'high' ? 2 : 1;
 }
 
 /**

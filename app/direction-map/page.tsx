@@ -1,13 +1,15 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import dynamic from 'next/dynamic';
 import LeftSidebar from '@/app/components/map/LeftSidebar';
-import RightSidebar, { type StarMode } from '@/app/components/map/RightSidebar';
+import RightSidebar from '@/app/components/map/RightSidebar';
 import type { MapSettings, DirectionalReadingEntry, SearchResultMarker } from '@/app/components/map/MapCore';
 import { calculateHonmeiStar, calculateMonthStar } from '@/lib/fortune/nine-star-ki/calculator';
-import { calculateDayLoshu } from '@/lib/fortune/directional/loshu';
-import { generateDirectionalReading } from '@/lib/fortune/directional/calculator';
+import { generateDirectionalReading, type DirectionalReading } from '@/lib/fortune/directional/calculator';
+
+type BoardType = 'year' | 'month' | 'day';
+type BoardResult = { boardType: BoardType; reading: DirectionalReading };
 
 const MapCore = dynamic(() => import('@/app/components/map/MapCore'), {
   ssr: false,
@@ -39,27 +41,27 @@ function nowDateTimeLocal() {
   return now.toISOString().slice(0, 16);
 }
 
-const BOARD_LABELS: Record<'year' | 'month' | 'day' | 'time', string> = {
-  year: '年盤', month: '月盤', day: '日盤', time: '時盤',
-};
+// 盤タイプ（年・月・日）の表示名と識別色
+const BOARD_ORDER: BoardType[] = ['year', 'month', 'day'];
+const BOARD_LABELS: Record<BoardType, string> = { year: '年盤', month: '月盤', day: '日盤' };
+const BOARD_COLORS: Record<BoardType, string> = { year: '#6366f1', month: '#7c3aed', day: '#0d9488' };
 
 export default function DirectionMapPage() {
   const [origin, setOrigin] = useState<{ lat: number; lng: number }>({ lat: 35.6762, lng: 139.6503 });
   const [destination, setDestination] = useState<{ lat: number; lng: number } | null>(null);
   const [birthDate, setBirthDate] = useState('');
   const [targetDateTime, setTargetDateTime] = useState(nowDateTimeLocal());
-  const [boardType, setBoardType] = useState<'year' | 'month' | 'day' | 'time'>('month');
+  const [selectedBoards, setSelectedBoards] = useState<BoardType[]>(['year']);
   const [settings, setSettings] = useState<MapSettings>(DEFAULT_SETTINGS);
   const [showMarkers, setShowMarkers] = useState(true);
-  const [directionalReadings, setDirectionalReadings] = useState<DirectionalReadingEntry[]>([]);
-  const [selectedModes, setSelectedModes] = useState<StarMode[]>(['honmei']);
+  const [boardResults, setBoardResults] = useState<BoardResult[]>([]);
   const [honmeiStarNum, setHonmeiStarNum] = useState<number | null>(null);
   const [tsukimeiStarNum, setTsukimeiStarNum] = useState<number | null>(null);
-  const [nichimeiStarNum, setNichimeiStarNum] = useState<number | null>(null);
   const [flyToOrigin, setFlyToOrigin] = useState(false);
   const [flyToDestination, setFlyToDestination] = useState(false);
   const [mobilePanel, setMobilePanel] = useState<'none' | 'left' | 'right'>('none');
   const [searchResultMarkers, setSearchResultMarkers] = useState<SearchResultMarker[]>([]);
+  const [pinnedPoint, setPinnedPoint] = useState<{ lat: number; lng: number } | null>(null);
 
   // localStorage から生年月日を自動読み込み
   useEffect(() => {
@@ -79,62 +81,40 @@ export default function DirectionMapPage() {
     }
   }, []);
 
-  // 命星モードごとの表示名・色
-  const MODE_INFO: Record<StarMode, { modeName: string; modeColor: string }> = {
-    honmei:   { modeName: '本命', modeColor: '#6366f1' },
-    tsukimei: { modeName: '月命', modeColor: '#7c3aed' },
-    nichimei: { modeName: '日命', modeColor: '#0d9488' },
-  };
-
-  // 生年月日・selectedModes・boardType が変わったら自動再計算
-  useEffect(() => {
-    if (birthDate && origin) {
-      calculate(birthDate, targetDateTime, selectedModes, boardType);
-    }
-  }, [birthDate, origin, selectedModes, boardType]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const calculate = useCallback((bd: string, dt: string, modes: StarMode[] = ['honmei'], targetBoard: 'year' | 'month' | 'day' | 'time' = 'month') => {
+  // 生年月日・選択した盤（年/月/日）が変わったら自動再計算
+  // 各盤について本命・月命固定で reading を生成する（命星モードは廃止）
+  const calculate = useCallback((bd: string, dt: string, boards: BoardType[]) => {
     if (!bd) return;
     try {
       const birth = new Date(bd);
       const honmei = calculateHonmeiStar(birth);
       const tsukimei = calculateMonthStar(birth, honmei);
-      const nichimei = calculateDayLoshu(birth).CENTER;
       setHonmeiStarNum(honmei);
       setTsukimeiStarNum(tsukimei);
-      setNichimeiStarNum(nichimei);
       const date = new Date(dt);
-      const entries: DirectionalReadingEntry[] = modes.map(mode => {
-        let primaryStar: number;
-        let secondaryStar: number;
-        if (mode === 'nichimei') {
-          primaryStar = nichimei;
-          secondaryStar = honmei;
-        } else if (mode === 'tsukimei') {
-          primaryStar = tsukimei;
-          secondaryStar = honmei;
-        } else {
-          primaryStar = honmei;
-          secondaryStar = tsukimei;
-        }
-        return {
-          ...MODE_INFO[mode],
-          reading: generateDirectionalReading(date, primaryStar, secondaryStar, targetBoard),
-        };
-      });
-      setDirectionalReadings(entries);
+      const results: BoardResult[] = boards.map(board => ({
+        boardType: board,
+        reading: generateDirectionalReading(date, honmei, tsukimei, board),
+      }));
+      setBoardResults(results);
       localStorage.setItem('kyusei_birthDate', bd);
     } catch (e) {
       console.error(e);
     }
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []);
 
-  const handleCalculate = () => calculate(birthDate, targetDateTime, selectedModes, boardType);
+  useEffect(() => {
+    if (birthDate && origin) {
+      calculate(birthDate, targetDateTime, selectedBoards);
+    }
+  }, [birthDate, origin, selectedBoards]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleCalculate = () => calculate(birthDate, targetDateTime, selectedBoards);
 
   const handleSetCurrentTime = () => {
     const now = nowDateTimeLocal();
     setTargetDateTime(now);
-    calculate(birthDate, now, selectedModes, boardType);
+    calculate(birthDate, now, selectedBoards);
   };
 
   const handleCurrentLocation = () => {
@@ -155,9 +135,10 @@ export default function DirectionMapPage() {
     setBirthDate('');
     setTargetDateTime(nowDateTimeLocal());
     setSettings(DEFAULT_SETTINGS);
-    setDirectionalReadings([]);
-    setSelectedModes(['honmei']);
+    setBoardResults([]);
+    setSelectedBoards(['year']);
     setShowMarkers(true);
+    setPinnedPoint(null);
     localStorage.removeItem('kyusei_birthDate');
   };
 
@@ -167,17 +148,46 @@ export default function DirectionMapPage() {
 
   const handleBirthDateChange = (v: string) => {
     setBirthDate(v);
-    calculate(v, targetDateTime, selectedModes, boardType);
+    calculate(v, targetDateTime, selectedBoards);
   };
 
-  const handleSelectedModesChange = (modes: StarMode[]) => {
-    setSelectedModes(modes);
-    calculate(birthDate, targetDateTime, modes, boardType);
+  // 盤（年/月/日）の複数選択トグル。最低1つは残す。表示順は 年→月→日 に保つ
+  const toggleBoard = (board: BoardType) => {
+    setSelectedBoards(prev => {
+      const isOn = prev.includes(board);
+      if (isOn) {
+        if (prev.length === 1) return prev;
+        return prev.filter(b => b !== board);
+      }
+      return BOARD_ORDER.filter(b => b === board || prev.includes(b));
+    });
   };
 
   const handleTargetDateTimeChange = (v: string) => {
     setTargetDateTime(v);
   };
+
+  // boardResults から MapCore 用（カラーゾーン重ね表示）を派生
+  const directionalReadings: DirectionalReadingEntry[] = useMemo(
+    () => boardResults.map(r => ({
+      modeName: BOARD_LABELS[r.boardType],
+      modeColor: BOARD_COLORS[r.boardType],
+      reading: r.reading,
+    })),
+    [boardResults]
+  );
+
+  // boardResults から LeftSidebar 用（方位盤を縦に複数枚並べる）を派生
+  const boardEntries = useMemo(
+    () => boardResults.map(r => ({
+      modeName: BOARD_LABELS[r.boardType],
+      modeColor: BOARD_COLORS[r.boardType],
+      boardType: r.boardType,
+      loshuBoards: r.reading.loshuBoards,
+      directions: r.reading.directions,
+    })),
+    [boardResults]
+  );
 
   const sidebarProps = {
     left: {
@@ -198,26 +208,16 @@ export default function DirectionMapPage() {
       birthDate,
       onBirthDateChange: handleBirthDateChange,
       onSearchResults: setSearchResultMarkers,
-      boardType,
-      onBoardTypeChange: (type: 'year' | 'month' | 'day' | 'time') => setBoardType(type),
-      boardEntries: directionalReadings.length > 0
-        ? directionalReadings.map(({ modeName, modeColor, reading }) => ({
-            modeName,
-            modeColor,
-            boardType,
-            loshuBoards: reading.loshuBoards,
-            directions: reading.directions,
-          }))
-        : null,
+      pinnedPoint,
+      onSetPinAsOrigin: () => { if (pinnedPoint) { setOrigin(pinnedPoint); setFlyToOrigin(true); setPinnedPoint(null); } },
+      onSetPinAsDestination: () => { if (pinnedPoint) { setDestination(pinnedPoint); setFlyToDestination(true); setPinnedPoint(null); } },
+      selectedBoards,
+      onToggleBoard: toggleBoard,
+      boardEntries: boardEntries.length > 0 ? boardEntries : null,
     },
     right: {
       settings,
       onSettingsChange: handleSettingsChange,
-      selectedModes,
-      onSelectedModesChange: handleSelectedModesChange,
-      honmeiStarName: honmeiStarNum ? getStarName(honmeiStarNum) : undefined,
-      tsukimeiStarName: tsukimeiStarNum ? getStarName(tsukimeiStarNum) : undefined,
-      nichimeiStarName: nichimeiStarNum ? getStarName(nichimeiStarNum) : undefined,
     },
   };
 
@@ -228,21 +228,19 @@ export default function DirectionMapPage() {
         <h1 className="font-bold font-serif text-slate-800 text-base sm:text-lg whitespace-nowrap">
           🧭 吉方位マップ
         </h1>
-        {directionalReadings.length > 0 && (
+        {boardResults.length > 0 && (
           <div className="hidden sm:flex items-center gap-2 text-xs text-slate-500 min-w-0">
-            <span className={`truncate font-bold ${selectedModes.includes('honmei') ? 'text-indigo-600' : 'text-slate-400'}`}>
+            <span className="truncate font-bold text-indigo-600">
               本命: {honmeiStarNum ? getStarName(honmeiStarNum) : '-'}
             </span>
             <span>|</span>
-            <span className={`truncate font-bold ${selectedModes.includes('tsukimei') ? 'text-violet-600' : 'text-slate-400'}`}>
+            <span className="truncate font-bold text-violet-600">
               月命: {tsukimeiStarNum ? getStarName(tsukimeiStarNum) : '-'}
             </span>
             <span>|</span>
-            <span className={`truncate font-bold ${selectedModes.includes('nichimei') ? 'text-teal-600' : 'text-slate-400'}`}>
-              日命: {nichimeiStarNum ? getStarName(nichimeiStarNum) : '-'}
+            <span className="truncate">
+              {new Date(targetDateTime).toLocaleDateString('ja-JP')} {selectedBoards.map(b => BOARD_LABELS[b]).join('・')}
             </span>
-            <span>|</span>
-            <span className="truncate">{new Date(targetDateTime).toLocaleDateString('ja-JP')} {BOARD_LABELS[boardType]}</span>
           </div>
         )}
         {!birthDate && (
@@ -288,7 +286,8 @@ export default function DirectionMapPage() {
               directionalReadings={directionalReadings}
               settings={settings}
               showMarkers={showMarkers}
-              onMapClick={(lat, lng) => { setDestination({ lat, lng }); setMobilePanel('none'); }}
+              onMapClick={(lat, lng) => { setPinnedPoint({ lat, lng }); setMobilePanel('none'); }}
+              pinnedPoint={pinnedPoint}
               onOriginChange={pos => { setOrigin(pos); }}
               flyToOrigin={flyToOrigin}
               flyToDestination={flyToDestination}

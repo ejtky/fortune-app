@@ -31,11 +31,21 @@ export const NIJUSHISAN: { label: string; angle: number; kana: string }[] = [
   { label: '亥', angle: 330, kana: 'い' },
 ];
 
-// 分割方式ごとの方位角リスト
+// 分割方式ごとの方位角リスト（セクター中心角）
+// 30_60: 正中(N/E/S/W)=幅30°、四隅(NE/SE/SW/NW)=幅60° の非対称8分割
+// 45:    全セクター=幅45° の均等8分割
+// 24:    全セクター=幅15° の均等24分割
 export const DIVISION_ANGLES: Record<'30_60' | '45' | '24', number[]> = {
-  '30_60': [0, 30, 60, 90, 120, 150, 180, 210, 240, 270, 300, 330],
+  '30_60': [0, 45, 90, 135, 180, 225, 270, 315],
   '45':    [0, 45, 90, 135, 180, 225, 270, 315],
   '24':    NIJUSHISAN.map(m => m.angle),
+};
+
+// 各セクターの半幅（中心角から境界線までの角度）。DIVISION_ANGLES と同じ順序。
+export const DIVISION_HALF_WIDTHS: Record<'30_60' | '45' | '24', number[]> = {
+  '30_60': [15, 30, 15, 30, 15, 30, 15, 30],  // N=15, NE=30, E=15, SE=30, ...
+  '45':    Array(8).fill(22.5),
+  '24':    Array(24).fill(7.5),
 };
 
 const R = 6371000; // 地球半径（メートル）
@@ -184,13 +194,8 @@ export function getDirectionLabel(bearingDeg: number, division: '30_60' | '45' |
     0: '北', 45: '北東', 90: '東', 135: '南東',
     180: '南', 225: '南西', 270: '西', 315: '北西',
   };
-  const labels12: Record<number, string> = {
-    0: '北', 30: '北北東', 60: '北東北', 90: '東',
-    120: '東南東', 150: '南東南', 180: '南',
-    210: '南南西', 240: '南西南', 270: '西',
-    300: '西北西', 330: '北西北',
-  };
-  const labels = division === '45' ? labels8 : labels12;
+  // 30_60 と 45 はどちらも8セクター → labels8 で十分
+  const labels = labels8;
   const angles = DIVISION_ANGLES[division];
   const closest = angles.reduce((prev, curr) => {
     const dp = Math.abs(((bearingDeg - prev + 180) % 360) - 180);

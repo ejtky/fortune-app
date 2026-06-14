@@ -10,6 +10,7 @@ import { STAR_DIRECTION_MAP } from './constants';
  * 洛書の配置（各方位に配置される星）
  */
 export interface LoshuLayout {
+  [key: string]: number;
   N: number;
   NE: number;
   E: number;

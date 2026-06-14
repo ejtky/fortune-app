@@ -2,9 +2,16 @@
 
 import { useState, useRef, useEffect } from 'react';
 
+import DirectionBoard from '@/app/components/DirectionBoard';
+import DirectionBoardModeToggle from '@/app/components/DirectionBoardModeToggle';
 import type { DirectionAnalysis } from '@/lib/fortune/directional/calculator';
-import type { LoshuBoards } from '@/lib/fortune/directional/loshu';
-import type { DirectionQuality } from '@/lib/fortune/directional/constants';
+import {
+  getEtoBranchName,
+  getYearEtoBranch,
+  getYearTenkanName,
+} from '@/lib/fortune/directional/eto-tables';
+import { calculateDayLoshu, type LoshuBoards } from '@/lib/fortune/directional/loshu';
+import { calculateHonmeiStar, calculateMonthStar } from '@/lib/fortune/nine-star-ki/calculator';
 import type { SearchResultMarker } from './MapCore';
 
 interface PhotonFeature {
@@ -78,12 +85,17 @@ function photonSubtext(p: PhotonFeature['properties']): string {
   return parts.slice(0, 3).join(', ');
 }
 
+type BoardType = 'year' | 'month' | 'day' | 'time';
+
 interface LeftSidebarProps {
   onCurrentLocation: () => void;
   onFlyToOrigin: () => void;
   onFlyToDestination: () => void;
   onSetOrigin: (pos: { lat: number; lng: number; label?: string }) => void;
   onSetDestination: (pos: { lat: number; lng: number; label?: string }) => void;
+  pinnedPoint?: { lat: number; lng: number } | null;
+  onSetPinAsOrigin?: () => void;
+  onSetPinAsDestination?: () => void;
   onReset: () => void;
   showMarkers: boolean;
   onToggleMarkers: (v: boolean) => void;
@@ -91,45 +103,73 @@ interface LeftSidebarProps {
   hasDestination: boolean;
   targetDateTime: string;
   onTargetDateTimeChange: (v: string) => void;
+  birthDate?: string;
   onCalculate: () => void;
   onSetCurrentTime: () => void;
-  birthDate: string;
-  onBirthDateChange: (v: string) => void;
   onSearchResults?: (markers: SearchResultMarker[]) => void;
-  boardType?: 'year' | 'month' | 'day' | 'time';
-  onBoardTypeChange?: (v: 'year' | 'month' | 'day' | 'time') => void;
+  selectedBoards?: Array<'year' | 'month' | 'day'>;
+  onToggleBoard?: (v: 'year' | 'month' | 'day') => void;
   boardEntries?: Array<{
     modeName: string;
     modeColor: string;
-    boardType: 'year' | 'month' | 'day' | 'time';
+    boardType: BoardType;
     loshuBoards: LoshuBoards;
     directions: DirectionAnalysis[];
   }> | null;
+  onClose?: () => void;
 }
 
-const BOARD_LABELS: Record<'year' | 'month' | 'day' | 'time', string> = {
+const BOARD_LABELS: Record<BoardType, string> = {
   year: '年盤', month: '月盤', day: '日盤', time: '時盤',
 };
 
-// 品質ごとの盤セルスタイル
-const QUALITY_CELL: Record<DirectionQuality, { bg: string; text: string; badge: string }> = {
-  excellent: { bg: 'bg-emerald-100', text: 'text-emerald-800', badge: '大吉' },
-  good:      { bg: 'bg-sky-100',     text: 'text-sky-700',     badge: '吉' },
-  neutral:   { bg: 'bg-white',       text: 'text-slate-500',   badge: '' },
-  caution:   { bg: 'bg-amber-100',   text: 'text-amber-700',   badge: '小凶' },
-  avoid:     { bg: 'bg-red-100',     text: 'text-red-700',     badge: '凶' },
+type BirthProfile = {
+  honmei: number;
+  getsumei: number;
+  nichimei: number;
 };
 
-const KANJI_STARS: Record<number, string> = {
-  1: '一', 2: '二', 3: '三', 4: '四', 5: '五', 6: '六', 7: '七', 8: '八', 9: '九'
-};
+function formatBoardLabel(date: Date, boardType: BoardType): string {
+  const year = date.getFullYear();
+  const month = date.getMonth() + 1;
+  const day = date.getDate();
 
-const COMPASS_LAYOUT = [
-  'NW', 'N', 'NE',
-  'W', 'CENTER', 'E',
-  'SW', 'S', 'SE'
-] as const;
+  if (boardType === 'year') return `${year}年 ${BOARD_LABELS[boardType]}`;
+  if (boardType === 'month') return `${year}年${month}月 ${BOARD_LABELS[boardType]}`;
+  if (boardType === 'day') return `${year}年${month}月${day}日 ${BOARD_LABELS[boardType]}`;
 
+  const hours = String(date.getHours()).padStart(2, '0');
+  const minutes = String(date.getMinutes()).padStart(2, '0');
+  return `${year}年${month}月${day}日 ${hours}:${minutes} ${BOARD_LABELS[boardType]}`;
+}
+
+function formatBoardRange(date: Date, boardType: BoardType): string {
+  const year = date.getFullYear();
+  const month = date.getMonth() + 1;
+  const day = date.getDate();
+
+  if (boardType === 'year') return `${year}/2/4 - ${year + 1}/2/3`;
+  if (boardType === 'month') return `${year}/${month}`;
+  if (boardType === 'day') return `${year}/${month}/${day}`;
+
+  const hours = String(date.getHours()).padStart(2, '0');
+  const minutes = String(date.getMinutes()).padStart(2, '0');
+  return `${year}/${month}/${day} ${hours}:${minutes}`;
+}
+
+function getBirthProfile(birthDate?: string): BirthProfile | null {
+  if (!birthDate) return null;
+
+  const birth = new Date(birthDate);
+  if (Number.isNaN(birth.getTime())) return null;
+
+  const honmei = calculateHonmeiStar(birth);
+  return {
+    honmei,
+    getsumei: calculateMonthStar(birth, honmei),
+    nichimei: calculateDayLoshu(birth).CENTER,
+  };
+}
 
 export default function LeftSidebar({
   onCurrentLocation,
@@ -137,6 +177,9 @@ export default function LeftSidebar({
   onFlyToDestination,
   onSetOrigin,
   onSetDestination,
+  pinnedPoint,
+  onSetPinAsOrigin,
+  onSetPinAsDestination,
   onReset,
   showMarkers,
   onToggleMarkers,
@@ -144,39 +187,29 @@ export default function LeftSidebar({
   hasDestination,
   targetDateTime,
   onTargetDateTimeChange,
+  birthDate,
   onCalculate,
   onSetCurrentTime,
-  birthDate,
-  onBirthDateChange,
   onSearchResults,
-  boardType,
-  onBoardTypeChange,
+  selectedBoards,
+  onToggleBoard,
   boardEntries,
+  onClose,
 }: LeftSidebarProps) {
 
-  const BOARD_ORDER: ('year' | 'month' | 'day' | 'time')[] = ['year', 'month', 'day', 'time'];
-  const prevBoard = () => {
-    if (!boardType || !onBoardTypeChange) return;
-    const idx = BOARD_ORDER.indexOf(boardType);
-    onBoardTypeChange(BOARD_ORDER[(idx + 3) % 4]);
-  };
-  const nextBoard = () => {
-    if (!boardType || !onBoardTypeChange) return;
-    const idx = BOARD_ORDER.indexOf(boardType);
-    onBoardTypeChange(BOARD_ORDER[(idx + 1) % 4]);
-  };
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<PhotonFeature[]>([]);
   const [searching, setSearching] = useState(false);
   const [showHint, setShowHint] = useState(false);
-  const [localBirthDate, setLocalBirthDate] = useState(birthDate);
   const [selectedFeature, setSelectedFeature] = useState<PhotonFeature | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    setLocalBirthDate(birthDate);
-  }, [birthDate]);
+  const birthProfile = getBirthProfile(birthDate);
+  const targetDate = new Date(targetDateTime);
+  const safeTargetDate = Number.isNaN(targetDate.getTime()) ? new Date() : targetDate;
+  const targetYear = safeTargetDate.getFullYear();
+  const yearEto = getEtoBranchName(getYearEtoBranch(targetYear));
+  const yearTenkan = getYearTenkanName(targetYear);
 
   useEffect(() => {
     onSearchResults?.(
@@ -246,7 +279,20 @@ export default function LeftSidebar({
   };
 
   return (
-    <aside className="w-52 flex-shrink-0 bg-white border-r border-slate-200 flex flex-col text-sm overflow-y-auto">
+    <aside className="w-full flex-1 min-h-0 bg-white border-r border-slate-200 flex flex-col text-sm overflow-y-auto">
+      {/* モバイル：閉じるボタン */}
+      {onClose && (
+        <div className="lg:hidden flex items-center justify-between px-3 py-2.5 bg-slate-50 border-b border-slate-200 flex-shrink-0">
+          <span className="text-sm font-bold text-slate-700">🔍 場所・日時</span>
+          <button
+            onClick={onClose}
+            className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-slate-200 text-slate-500 text-base leading-none"
+            aria-label="閉じる"
+          >
+            ✕
+          </button>
+        </div>
+      )}
       {/* ナビゲーションボタン */}
       <div className="p-3 space-y-2 border-b border-slate-100">
         <button
@@ -270,6 +316,30 @@ export default function LeftSidebar({
           <span>⛳</span> 目的地へ
         </button>
       </div>
+
+      {/* 地図で選択した地点（クリックで立てた印） */}
+      {pinnedPoint && (
+        <div className="p-3 border-b border-slate-100 bg-amber-50">
+          <div className="text-xs font-bold text-amber-700 mb-1">📍 地図で選択した地点</div>
+          <div className="text-[11px] text-slate-500 mb-2">
+            緯度 {pinnedPoint.lat.toFixed(4)} / 経度 {pinnedPoint.lng.toFixed(4)}
+          </div>
+          <div className="flex gap-1.5">
+            <button
+              onClick={onSetPinAsOrigin}
+              className="flex-1 py-1.5 bg-indigo-500 hover:bg-indigo-600 text-white rounded text-xs font-medium transition-colors"
+            >
+              🏠 起点に
+            </button>
+            <button
+              onClick={onSetPinAsDestination}
+              className="flex-1 py-1.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded text-xs font-medium transition-colors"
+            >
+              ⛳ 目的地に
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* 場所を検索 */}
       <div className="border-b border-slate-100">
@@ -388,145 +458,57 @@ export default function LeftSidebar({
         </div>
       </div>
 
-      {/* 生年月日 */}
-      <div className="p-3 border-b border-slate-100">
-        <div className="space-y-2">
-          <div>
-            <label className="text-xs text-slate-500 block mb-0.5">生年月日</label>
-            <input
-              type="date"
-              value={localBirthDate}
-              onChange={e => setLocalBirthDate(e.target.value)}
-              className="w-full px-2 py-1.5 border border-slate-300 rounded text-xs focus:outline-none focus:ring-2 focus:ring-indigo-300"
-            />
-          </div>
-          <div className="flex gap-1.5">
-            <button
-              onClick={() => onBirthDateChange(localBirthDate)}
-              className="flex-1 py-1.5 bg-indigo-600 text-white rounded text-xs hover:bg-indigo-700 font-medium"
-            >
-              設定・表示
-            </button>
-            <button
-              onClick={() => {
-                setLocalBirthDate('');
-                onBirthDateChange('');
-              }}
-              className="flex-1 py-1.5 bg-slate-100 text-slate-600 rounded text-xs hover:bg-slate-200"
-            >
-              クリア
-            </button>
-          </div>
-        </div>
-      </div>
-
       {/* 方位盤（命星別） */}
-      {boardEntries && boardEntries.length > 0 && (
+      {boardEntries && boardEntries.length > 0 && birthProfile && (
         <div className="p-3 border-b border-slate-100 space-y-4">
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold text-slate-500">🧭 方位盤</span>
             <span className="text-[10px] text-slate-400 border border-slate-200 px-1.5 py-0.5 rounded bg-white">北・上</span>
           </div>
+          <DirectionBoardModeToggle />
 
-          {/* 盤タイプ切替 */}
-          {boardType && onBoardTypeChange && (
-            <div className="flex items-center justify-between">
-              <button onClick={prevBoard} className="px-2 py-1 text-slate-400 hover:text-indigo-600 font-bold text-sm">◀</button>
-              <div className="flex gap-1">
-                {BOARD_ORDER.map(bt => (
-                  <button
-                    key={bt}
-                    onClick={() => onBoardTypeChange(bt)}
-                    className={`px-2 py-1 text-[11px] font-bold rounded transition-colors ${
-                      boardType === bt
-                        ? 'bg-indigo-600 text-white'
-                        : 'text-slate-500 hover:bg-slate-100'
-                    }`}
-                  >
-                    {BOARD_LABELS[bt].replace('盤', '')}
-                  </button>
-                ))}
-              </div>
-              <button onClick={nextBoard} className="px-2 py-1 text-slate-400 hover:text-indigo-600 font-bold text-sm">▶</button>
+          {/* 盤タイプ切替（年/月/日 複数選択可・重複タップで重ね表示） */}
+          {selectedBoards && onToggleBoard && (
+            <div className="flex gap-1">
+              {(['year', 'month', 'day'] as const).map(bt => (
+                <button
+                  key={bt}
+                  onClick={() => onToggleBoard(bt)}
+                  className={`flex-1 px-2 py-1 text-[11px] font-bold rounded border transition-colors ${
+                    selectedBoards.includes(bt)
+                      ? 'bg-indigo-600 text-white border-indigo-600'
+                      : 'text-slate-500 hover:bg-slate-100 border-slate-200'
+                  }`}
+                >
+                  {BOARD_LABELS[bt]}
+                </button>
+              ))}
             </div>
           )}
 
           {boardEntries.map((entry, idx) => {
             const layout = entry.loshuBoards[entry.boardType];
-            const dirMap = new Map(entry.directions.map(d => [d.direction, d]));
 
             return (
-              <div key={idx}>
-                {/* 命星ヘッダー */}
+              <div key={`${entry.boardType}-${idx}`} className="space-y-2">
+                {/* 盤ヘッダー（本命・月命は固定） */}
                 <div className="flex items-center gap-1.5 mb-1.5">
                   <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: entry.modeColor }} />
-                  <span className="text-xs font-bold" style={{ color: entry.modeColor }}>{entry.modeName}星</span>
-                  <span className="text-[10px] text-slate-400 ml-auto">{BOARD_LABELS[entry.boardType]}</span>
+                  <span className="text-xs font-bold" style={{ color: entry.modeColor }}>{entry.modeName}</span>
                 </div>
 
-                {/* 3×3グリッド盤 */}
-                <div className="grid grid-cols-3 gap-px bg-slate-300 rounded-lg overflow-hidden">
-                  {COMPASS_LAYOUT.map(dir => {
-                    const star = layout[dir as keyof typeof layout];
-                    const info = dir !== 'CENTER' ? dirMap.get(dir) : null;
-                    const isCenter = dir === 'CENTER';
-
-                    let bg = 'bg-slate-100';
-                    let textCls = 'text-slate-600';
-                    let badge = '';
-
-                    if (!isCenter && info) {
-                      if (info.satsu) {
-                        bg = 'bg-slate-200';
-                        textCls = 'text-slate-500';
-                        badge = info.satsu.name.replace('殺','').replace('的','').replace('破','');
-                      } else {
-                        const qs = QUALITY_CELL[info.quality as DirectionQuality];
-                        if (qs) { bg = qs.bg; textCls = qs.text; badge = qs.badge; }
-                      }
-                    }
-
-                    return (
-                      <div key={dir} className={`${bg} aspect-square flex flex-col items-center justify-center relative`}>
-                        {/* 方角ラベル */}
-                        {dir === 'N' && <div className="absolute top-0.5 inset-x-0 text-center text-[8px] text-slate-400 font-bold leading-none">北</div>}
-                        {dir === 'S' && <div className="absolute bottom-0.5 inset-x-0 text-center text-[8px] text-slate-400 font-bold leading-none">南</div>}
-                        {dir === 'E' && <div className="absolute inset-y-0 right-0.5 flex items-center text-[8px] text-slate-400 font-bold" style={{ writingMode: 'vertical-rl' }}>東</div>}
-                        {dir === 'W' && <div className="absolute inset-y-0 left-0.5 flex items-center text-[8px] text-slate-400 font-bold" style={{ writingMode: 'vertical-rl' }}>西</div>}
-
-                        {isCenter ? (
-                          <>
-                            <div className="text-red-400 text-[10px] leading-none">▲</div>
-                            <span className="text-sm font-bold font-serif text-slate-600">{KANJI_STARS[star as number]}</span>
-                          </>
-                        ) : (
-                          <>
-                            <span className={`text-base font-bold font-serif leading-none ${textCls}`}>{KANJI_STARS[star as number]}</span>
-                            {badge && (
-                              <span className={`text-[9px] leading-none mt-0.5 font-medium ${textCls}`}>{badge}</span>
-                            )}
-                          </>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
+                <DirectionBoard
+                  board={layout}
+                  honmei={birthProfile.honmei}
+                  getsumei={birthProfile.getsumei}
+                  yearEto={yearEto}
+                  yearTenkan={yearTenkan}
+                  yearLabel={formatBoardLabel(safeTargetDate, entry.boardType)}
+                  yearRange={formatBoardRange(safeTargetDate, entry.boardType)}
+                />
               </div>
             );
           })}
-
-          {/* 凡例 */}
-          <div className="flex flex-wrap gap-x-3 gap-y-1 pt-1 border-t border-slate-100">
-            {([
-              { label: '大吉', cls: 'text-emerald-700' },
-              { label: '吉',   cls: 'text-sky-700' },
-              { label: '平',   cls: 'text-slate-500' },
-              { label: '小凶', cls: 'text-amber-700' },
-              { label: '凶',   cls: 'text-red-700' },
-            ] as const).map(({ label, cls }) => (
-              <span key={label} className={`text-[10px] font-bold ${cls}`}>{label}</span>
-            ))}
-          </div>
 
         </div>
       )}

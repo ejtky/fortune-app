@@ -3,35 +3,16 @@ import * as React from 'react';
 
 import type { DivisionType, LineType, MapSettings } from './MapCore';
 
-export type StarMode = 'honmei' | 'tsukimei' | 'nichimei';
-
 interface RightSidebarProps {
   settings: MapSettings;
   onSettingsChange: (s: Partial<MapSettings>) => void;
-  selectedModes: StarMode[];
-  onSelectedModesChange: (v: StarMode[]) => void;
-  honmeiStarName?: string;
-  tsukimeiStarName?: string;
-  nichimeiStarName?: string;
 }
 
 
 export default function RightSidebar({
   settings,
   onSettingsChange,
-  selectedModes,
-  onSelectedModesChange,
-  honmeiStarName,
-  tsukimeiStarName,
-  nichimeiStarName,
 }: RightSidebarProps) {
-
-  const toggleMode = (mode: StarMode) => {
-    const isOn = selectedModes.includes(mode);
-    onSelectedModesChange(
-      isOn ? selectedModes.filter(m => m !== mode) : [...selectedModes, mode]
-    );
-  };
 
   const toggle = (key: keyof MapSettings, val?: boolean) =>
     onSettingsChange({ [key]: val ?? !settings[key] });
@@ -86,55 +67,6 @@ export default function RightSidebar({
 
   return (
     <aside className="w-56 flex-shrink-0 bg-white border-l border-slate-200 flex flex-col text-sm overflow-y-auto">
-
-      {/* 命星切り替え（最上部） */}
-      <div className="p-3 border-b border-slate-100">
-        <SectionTitle>命星モード（複数選択可）</SectionTitle>
-        <div className="flex rounded-lg overflow-hidden border border-slate-200">
-          {/* 本命星 */}
-          <button
-            onClick={() => toggleMode('honmei')}
-            className={`flex-1 py-1.5 text-xs font-bold transition-colors ${
-              selectedModes.includes('honmei') ? 'bg-indigo-600 text-white' : 'bg-white text-slate-500 hover:bg-slate-50'
-            }`}
-          >
-            本命星
-            <span className={`block text-[10px] font-normal leading-tight ${selectedModes.includes('honmei') ? 'text-indigo-200' : 'text-slate-400'}`}>
-              {honmeiStarName ?? '—'}
-            </span>
-          </button>
-          {/* 月命星 */}
-          <button
-            onClick={() => toggleMode('tsukimei')}
-            disabled={!tsukimeiStarName}
-            className={`flex-1 py-1.5 text-xs font-bold transition-colors border-l border-slate-200 ${
-              selectedModes.includes('tsukimei')
-                ? 'bg-violet-600 text-white'
-                : tsukimeiStarName ? 'bg-white text-slate-500 hover:bg-slate-50' : 'bg-slate-50 text-slate-300 cursor-not-allowed'
-            }`}
-          >
-            月命星
-            <span className={`block text-[10px] font-normal leading-tight ${selectedModes.includes('tsukimei') ? 'text-violet-200' : 'text-slate-400'}`}>
-              {tsukimeiStarName ?? '—'}
-            </span>
-          </button>
-          {/* 日命星 */}
-          <button
-            onClick={() => toggleMode('nichimei')}
-            disabled={!nichimeiStarName}
-            className={`flex-1 py-1.5 text-xs font-bold transition-colors border-l border-slate-200 ${
-              selectedModes.includes('nichimei')
-                ? 'bg-teal-600 text-white'
-                : nichimeiStarName ? 'bg-white text-slate-500 hover:bg-slate-50' : 'bg-slate-50 text-slate-300 cursor-not-allowed'
-            }`}
-          >
-            日命星
-            <span className={`block text-[10px] font-normal leading-tight ${selectedModes.includes('nichimei') ? 'text-teal-200' : 'text-slate-400'}`}>
-              {nichimeiStarName ?? '—'}
-            </span>
-          </button>
-        </div>
-      </div>
 
       {/* カラーオーバーレイ */}
       <div className="p-3 border-b border-slate-100">

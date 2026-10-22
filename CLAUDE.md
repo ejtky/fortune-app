@@ -35,4 +35,4 @@ Claudeが確認なしにファイルを大量削除した結果、Google Drive�
 - Next.js (App Router) による九星気学の占いアプリ
 - Google Drive上のObsidian vaultと同期しているファイルがある
 - Supabaseをバックエンドに使用
-- Vercelにデプロイ
+- Cloudflareにデプロイ
